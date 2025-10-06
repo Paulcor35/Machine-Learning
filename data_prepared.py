@@ -13,48 +13,35 @@ for col in df.columns:
 X = df.drop('High', axis=1)
 y = df['High']
 
-# Paramètres
-train_ratio = 0.8
-n = len(df)
-
-# Mélanger les indices
-np.random.seed(42)  # pour reproductibilité
-shuffled_indices = np.random.permutation(n)
-
-# Indices train/test
-train_size = int(train_ratio * n)
-train_indices = shuffled_indices[:train_size]
-test_indices = shuffled_indices[train_size:]
-
-# Créer les sets
-X_train = X.iloc[train_indices].reset_index(drop=True)
-X_test = X.iloc[test_indices].reset_index(drop=True)
-y_train = y.iloc[train_indices].reset_index(drop=True)
-y_test = y.iloc[test_indices].reset_index(drop=True)
-
-# Vérification
-print("Train size:", len(X_train))
-print("Test size:", len(X_test))
-
-
 # StandardScaler from scratch
 def standard_scaler_fit(X):
-    """Calcule la moyenne et l'écart-type pour chaque colonne"""
     mean = X.mean()
-    std = X.std(ddof=0)  # ddof=0 pour population standard deviation
+    std = X.std(ddof=0)
     return mean, std
 
 def standard_scaler_transform(X, mean, std):
-    """Applique la normalisation"""
     return (X - mean) / std
 
-# Fit sur le training
-mean_train, std_train = standard_scaler_fit(X_train)
+# Fit sur toutes les données (pour préparer un dataset unique)
+mean_X, std_X = standard_scaler_fit(X)
+X_scaled = standard_scaler_transform(X, mean_X, std_X)
 
-# Transformer train et test avec les stats du train
-X_train_scaled = standard_scaler_transform(X_train, mean_train, std_train)
-X_test_scaled = standard_scaler_transform(X_test, mean_train, std_train)
+# Création d'intervalles (bins) sur toutes les données
+n_bins = 20
+cols_to_bin = ['CompPrice', 'Income', 'Population', 'Price', 'Age']
 
-# Vérification
-print(X_train_scaled.head())
-print(X_test_scaled.head())
+bin_edges = {}
+for col in cols_to_bin:
+    _, edges = pd.cut(X_scaled[col], bins=n_bins, retbins=True)
+    bin_edges[col] = edges
+    bins_col = pd.cut(X_scaled[col], bins=edges, include_lowest=True)
+    X_scaled[col] = bins_col.apply(lambda x: x.mid)
+
+# Reconstituer le DataFrame complet
+df_prepared = X_scaled.copy()
+df_prepared["High"] = y.values
+
+# Sauvegarder dans un fichier CSV
+df_prepared.to_csv("Data-20251001/Carseats_prepared.csv", index=False)
+
+print("Data prepared saved ✅")
