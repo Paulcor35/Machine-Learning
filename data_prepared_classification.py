@@ -26,18 +26,7 @@ def standard_scaler_transform(X, mean, std):
 mean_X, std_X = standard_scaler_fit(X)
 X_scaled = standard_scaler_transform(X, mean_X, std_X)
 
-# Création d'intervalles (bins) sur toutes les données
-n_bins = 20
-cols_to_bin = ['CompPrice', 'Income', 'Population', 'Price', 'Age']
-
-bin_edges = {}
-for col in cols_to_bin:
-    _, edges = pd.cut(X_scaled[col], bins=n_bins, retbins=True)
-    bin_edges[col] = edges
-    bins_col = pd.cut(X_scaled[col], bins=edges, include_lowest=True)
-    X_scaled[col] = bins_col.apply(lambda x: x.mid)
-
-# Reconstituer le DataFrame complet
+# Reconstituer le DataFrame complet (sans binning)
 df_prepared = X_scaled.copy()
 df_prepared["High"] = y.values
 

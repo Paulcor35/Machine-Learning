@@ -27,7 +27,7 @@ def standard_scaler_transform(X, mean, std):
     return (X - mean) / std
 
 # ------------------------- Préparation des données -------------------------
-# On enlève la colonne cible et l'indice maxO3 (car ce n’est pas une mesure brute)
+# On enlève la colonne indice et max03v pour ne pas avoir de fuite de données
 X = df.drop([target_col, "id"], axis=1, errors='ignore')
 y = df[target_col]
 
