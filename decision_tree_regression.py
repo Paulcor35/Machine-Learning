@@ -20,7 +20,7 @@ y = df[target_col]
 # ------------------------- Séparer train/test -------------------------
 train_ratio = 0.8
 n = len(df)
-#np.random.seed(42)
+np.random.seed(42)
 shuffled_indices = np.random.permutation(n)
 train_size = int(train_ratio * n)
 
@@ -99,6 +99,7 @@ def predict_regression(tree, example):
             return predict_regression(subtree, example)
     return np.nan
 
+
 # ------------------------- Apprentissage et prédiction -------------------------
 print("Évaluation model from scratch:\n")
 attributes = [col for col in X_train.columns]
@@ -117,9 +118,12 @@ mse = mean_squared_error(y_test, y_pred_scratch)
 r2 = r2_score(y_test, y_pred_scratch)
 print(f"MSE: {mse:.4f}\nR²: {r2:.4f}\n")
 
+
+
 # ------------------------- Avec sklearn -------------------------
+
 print("Évaluation avec sklearn:\n")
-regressor = DecisionTreeRegressor(criterion="squared_error", max_depth=5, random_state=42)
+regressor = DecisionTreeRegressor(criterion="squared_error", max_depth=5, random_state=42) # Limiter la profondeur pour comparaison équitable
 
 
 start_train = time.time()
