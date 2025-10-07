@@ -1,7 +1,9 @@
 #!/usr/bin/python3
+# -*- Mode: Python; tab-width: 4; indent-tabs-mode: t; c-basic-offset: 4 -*- #
 import argparse
 import pandas as pd
 import numpy as np
+import sklearn
 # (MCO)B = (X^t X)^{-1}X^t y
 # L2 = ||B||²
 # RSS_{L2} = sum_{i=1}^n (Y_i-Ŷ_l)² + λ sum_{j_1}^P B²_j
@@ -20,7 +22,7 @@ def read_file(fname, ftype):
 	else:
 		raise ValueError("Unsupported file type")
 
-def ridge(X, y, lambda_val=1.0):
+def ridge(X, y, lambda_val):
 	"""
 	Ridge regression implementation
 	β = (X^t X + λI)^{-1} X^t y
