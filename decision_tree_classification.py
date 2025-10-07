@@ -11,7 +11,7 @@ import time
 df_prepared = pd.read_csv("Data-20251001/Carseats_prepared.csv")
 
 # Séparer train/test
-train_ratio = 0.7
+train_ratio = 0.8
 n = len(df_prepared)
 shuffled_indices = np.random.permutation(n)
 train_size = int(train_ratio * n)
