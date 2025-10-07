@@ -1,29 +1,24 @@
 import pandas as pd
 import numpy as np
-from collections import Counter
 import time
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.metrics import mean_squared_error, r2_score
 
-# ------------------------- Charger les données -------------------------
-df = pd.read_csv("Data-20251001/ozone_complet.txt", sep=";", quotechar='"')
-
-# Vérification rapide
-print(df.head())
-print(df.info())
+# ------------------------- Chargement et préparation des données -------------------------
+df = pd.read_csv("Data-20251001/ozone_prepared.csv")
 
 # Colonne cible
 target_col = "maxO3"
 
-# Remplacer les valeurs manquantes par la moyenne
-df = df.fillna(df.mean())
+# Vérifier qu’elle existe
+assert target_col in df.columns, f"La colonne cible '{target_col}' est absente du fichier !"
 
-# Séparer features et target
-X = df.drop(target_col, axis=1)
+# Séparer features et target (exclure l'id si présent)
+X = df.drop(columns=[target_col, "id"], errors='ignore')
 y = df[target_col]
 
-
-
 # ------------------------- Séparer train/test -------------------------
-train_ratio = 0.7
+train_ratio = 0.8
 n = len(df)
 np.random.seed(42)
 shuffled_indices = np.random.permutation(n)
@@ -37,149 +32,111 @@ X_test = X.iloc[test_indices].reset_index(drop=True)
 y_train = y.iloc[train_indices].reset_index(drop=True)
 y_test = y.iloc[test_indices].reset_index(drop=True)
 
-# Reconstituer DataFrames complets
-df_train = X_train.copy()
-df_train[target_col] = y_train
-df_test = X_test.copy()
-df_test[target_col] = y_test
+# Vérification que les colonnes du train et du test sont identiques
+assert list(X_train.columns) == list(X_test.columns), "Les colonnes de X_train et X_test ne correspondent pas !"
 
-
-
-# ------------------------- Arbre de régression -------------------------
-
-# Variance pour mesure de qualité
+# ------------------------- Arbre de régression from scratch -------------------------
 def variance(df, target_attr):
     return np.var(df[target_attr])
 
-# Choisir le meilleur attribut (réduction de variance)
 def importance_regression(attributes, df, target_attr):
     base_var = variance(df, target_attr)
     best_gain = -1
     best_attr = None
+    best_threshold = None
 
     for attr in attributes:
-        values = df[attr].unique()
-        new_var = 0
-        for v in values:
-            subset = df[df[attr] == v]
-            new_var += (len(subset) / len(df)) * variance(subset, target_attr)
-        gain = base_var - new_var
-        if gain > best_gain:
-            best_gain = gain
-            best_attr = attr
-    return best_attr
+        values = np.sort(df[attr].unique())
+        for i in range(1, len(values)):
+            threshold = (values[i - 1] + values[i]) / 2
+            left = df[df[attr] <= threshold]
+            right = df[df[attr] > threshold]
+            if len(left) == 0 or len(right) == 0:
+                continue
+            new_var = (len(left)/len(df))*variance(left, target_attr) + (len(right)/len(df))*variance(right, target_attr)
+            gain = base_var - new_var
+            if gain > best_gain:
+                best_gain = gain
+                best_attr = attr
+                best_threshold = threshold
+    return best_attr, best_threshold
 
-# Moyenne pour feuille
 def mean_val(df, target_attr):
     return df[target_attr].mean()
 
-# Construction de l'arbre
-def dt_learning_regression(df, attributes, parent_df, target_attr):
+def dt_learning_regression(df, attributes, parent_df, target_attr, depth=0, max_depth=None):
     if df.empty:
         return mean_val(parent_df, target_attr)
     if len(df[target_attr].unique()) == 1:
         return df[target_attr].iloc[0]
-    if not attributes:
+    if not attributes or (max_depth is not None and depth >= max_depth):
         return mean_val(df, target_attr)
 
-    A = importance_regression(attributes, df, target_attr)
+    A, threshold = importance_regression(attributes, df, target_attr)
+    if A is None:
+        return mean_val(df, target_attr)
+
     tree = {A: {}}
-    for v in df[A].unique():
-        exs = df[df[A] == v]
-        subtree = dt_learning_regression(
-            exs,
-            [attr for attr in attributes if attr != A],
-            df,
-            target_attr
-        )
-        tree[A][v] = subtree
+    left = df[df[A] <= threshold]
+    right = df[df[A] > threshold]
+
+    tree[A][f"<= {threshold:.3f}"] = dt_learning_regression(left, attributes, df, target_attr, depth+1, max_depth)
+    tree[A][f"> {threshold:.3f}"] = dt_learning_regression(right, attributes, df, target_attr, depth+1, max_depth)
+
     return tree
 
-# Fonction de prédiction
 def predict_regression(tree, example):
     if not isinstance(tree, dict):
         return tree
-
     attr = next(iter(tree))
-    attr_value = example[attr]
-
-    if attr_value not in tree[attr]:
-        # Moyenne des valeurs du sous-arbre si valeur inconnue
-        values = []
-        for subtree in tree[attr].values():
-            if isinstance(subtree, dict):
-                stack = [subtree]
-                while stack:
-                    node = stack.pop()
-                    if isinstance(node, dict):
-                        for v in node.values():
-                            stack.append(v)
-                    else:
-                        values.append(node)
-            else:
-                values.append(subtree)
-        return np.mean(values)
-
-    return predict_regression(tree[attr][attr_value], example)
-
-
+    for condition, subtree in tree[attr].items():
+        op, threshold = condition.split(" ")
+        threshold = float(threshold)
+        value = example[attr]
+        if op == "<=" and value <= threshold:
+            return predict_regression(subtree, example)
+        elif op == ">" and value > threshold:
+            return predict_regression(subtree, example)
+    return np.nan
 
 
 # ------------------------- Apprentissage et prédiction -------------------------
-attributes = [col for col in df_train.columns if col != target_col]
+print("Évaluation model from scratch:\n")
+attributes = [col for col in X_train.columns]
 
-# Temps d'apprentissage
 start_train = time.time()
-tree = dt_learning_regression(df_train, attributes, pd.DataFrame(), target_col)
+tree = dt_learning_regression(pd.concat([X_train, y_train], axis=1), attributes, pd.DataFrame(), target_col, max_depth=5)
 end_train = time.time()
 print(f"Temps d'apprentissage : {end_train - start_train:.4f} s")
 
-# Temps de prédiction
 start_pred = time.time()
-y_pred = [predict_regression(tree, row) for _, row in df_test.iterrows()]
+y_pred_scratch = [predict_regression(tree, row) for _, row in X_test.iterrows()]
 end_pred = time.time()
-print(f"Temps de prédiction : {end_pred - start_pred:.4f} s")
+print(f"Temps de prédiction : {end_pred - start_pred:.4f} s\n")
 
-# ------------------------- Évaluation -------------------------
-y_true = df_test[target_col].values
-y_pred = np.array(y_pred)
-
-mse = np.mean((y_true - y_pred)**2)
-ss_tot = np.sum((y_true - np.mean(y_true))**2)
-ss_res = np.sum((y_true - y_pred)**2)
-r2 = 1 - (ss_res / ss_tot)
-
-print(f"MSE: {mse:.4f}, R²: {r2:.4f}")
-
-
-
+mse = mean_squared_error(y_test, y_pred_scratch)
+r2 = r2_score(y_test, y_pred_scratch)
+print(f"MSE: {mse:.4f}\nR²: {r2:.4f}\n")
 
 
 
 # ------------------------- Avec sklearn -------------------------
-from sklearn.model_selection import train_test_split
-from sklearn.tree import DecisionTreeRegressor
-from sklearn.metrics import mean_squared_error, r2_score
+
+print("Évaluation avec sklearn:\n")
+regressor = DecisionTreeRegressor(criterion="squared_error", max_depth=5, random_state=42) # Limiter la profondeur pour comparaison équitable
 
 
-# 🔹 Créer le modèle
-regressor = DecisionTreeRegressor(criterion="squared_error", random_state=42)
-
-# 🔹 Mesurer le temps d'entraînement
 start_train = time.time()
 regressor.fit(X_train, y_train)
 end_train = time.time()
 print(f"Temps d'apprentissage : {end_train - start_train:.4f} s")
 
-# 🔹 Mesurer le temps de prédiction
 start_pred = time.time()
-y_pred = regressor.predict(X_test)
+y_pred_sklearn = regressor.predict(X_test)
 end_pred = time.time()
 print(f"Temps de prédiction : {end_pred - start_pred:.4f} s")
 
-# 🔹 Évaluation
-mse = mean_squared_error(y_test, y_pred)
-r2 = r2_score(y_test, y_pred)
-
+mse = mean_squared_error(y_test, y_pred_sklearn)
+r2 = r2_score(y_test, y_pred_sklearn)
 print(f"\nMSE: {mse:.4f}")
 print(f"R²: {r2:.4f}")
