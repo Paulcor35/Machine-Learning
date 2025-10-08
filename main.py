@@ -6,6 +6,9 @@ import numpy as np
 import utils
 import bench
 import plot
+from classes.DecisionTree import DecisionTree
+from classes.Ridge import Ridge
+from classes.SVC import SVC
 
 parser = argparse.ArgumentParser(description="Machine learning algorithms implementation", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("-f", "--file", help="input file", required=True)
@@ -21,31 +24,31 @@ args.type = args.type[0]
 ## TODO have proper default values
 
 def main():
-	model = get_class(args.algorithm)
+	model = utils.get_class(args.algorithm)
 	if args.type not in model.typ:
 		try:
 			raise TypeError("bad type")
 		except Exception as e:
 			e.add_note(f"{args.algorithm} doesn't support {type_map[args.type]}")
 	# Read and prepare data
-	df = read_file_wtype(args.file, args.type)
+	df = utils.read_file_wtype(args.file, args.type)
 
 	y = df[args.to_find]
 	X = (df.drop(columns=[args.to_find])
 		.select_dtypes(include=[np.number])
 		.to_numpy(dtype=float, copy=True))
 	feature_names = (df.drop(columns=[args.to_find]).select_dtypes(include=[np.number]).columns.tolist())
-	X_train, X_val, y_train, y_val = split(X, y)
+	X_train, X_val, y_train, y_val = utils.split(X, y)
 	mu = X_train.mean(axis=0); sigma = X_train.std(axis=0); sigma[sigma==0] = 1.0
 	X_train = (X_train - mu)/sigma
 	X_test  = (X_test  - mu)/sigma
 
-	model_sci = algos_sci_map[args.algorithm][args.type]() # TODO: default values
-	res = benchmark_model(model, X_train, y_train, X_test, y_test)
-	res_sci = benchmark_model(model_sci, X_train, y_train, X_test, y_test)
+	model_sci = utils.algos_sci_map[args.algorithm][args.type]() # TODO: default values
+	res = bench.benchmark_model(model, X_train, y_train, X_test, y_test)
+	res_sci = bench.benchmark_model(model_sci, X_train, y_train, X_test, y_test)
 
-	plot_roc([res, res_sci], [args.algorithm, f"{args.algorithm}_scikit"])
-	plot_pr([res, res_sci], [args.algorithm, f"{args.algorithm}_scikit"])
+	plot.plot_roc([res, res_sci], [args.algorithm, f"{args.algorithm}_scikit"])
+	plot.plot_pr([res, res_sci], [args.algorithm, f"{args.algorithm}_scikit"])
 
 if __name__ == "__main__":
 	main()

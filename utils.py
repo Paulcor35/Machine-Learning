@@ -5,7 +5,18 @@ from sklearn.linear_model import Ridge
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 import sys
+from platform import system
 
+
+def getPath(script_dir, file_dir):
+	plat = system()
+	if plat == "Windows":
+		script_dir = script_dir.replace("/", "\\")
+		file_dir = file_dir.replace("/", "\\")
+	else:
+		script_dir = script_dir.replace("\\", "/")
+		file_dir = file_dir.replace("\\", "/")
+	return script_dir, file_dir
 
 def split(X, y, ratio=0.8):
 	idx = int(ratio * len(X))
@@ -18,7 +29,8 @@ def calculate_mse(y_true, y_pred):
 	return np.mean((y_true - y_pred) ** 2)
 
 def read_file(fname, sep):
-	return pd.read_csv(fname, sep=sep)
+	script_dir , file_dir = getPath(os.path.dirname(os.path.abspath(__file__)), fname)
+	return pd.read_csv(os.path.join(script_dir+file_dir, sep=sep)
 
 def read_regression(fname):
 	df = read_file(fname, ";")
