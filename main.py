@@ -15,13 +15,10 @@ parser.add_argument("-f", "--file", help="input file", required=True)
 parser.add_argument("-t", "--type", help="algorithm type", choices=["r", "regression", "c", "classification"], default="r")
 parser.add_argument("-F", "--to-find", help="dependant var to find", required=True)
 parser.add_argument("-a", "--algorithm", help="algorithm to train and use", choices=["DecisionTree", "RandomForest", "Ridge", "Lasso", "SVM"], required=True)
-#parser.add_argument("-s", "--scikit", help="use the scikit-learn implementation", action="store_true")
-#parser.add_argument("-c", "--compare", help="compare with the scikit-learn implementation", action="store_true")
 args = parser.parse_args()
 
 args.type = args.type[0]
 
-## TODO have proper default values
 
 def main():
 	model = utils.get_class(args.algorithm)

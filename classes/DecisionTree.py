@@ -11,8 +11,6 @@ class DecisionTree:
 		self.cur = current
 
 	def fit(self, X, y):
-# def dt_learning(df, attributes, parent_df, target_attr)
-# def dt_learning_regression(df, attributes, parent_df, target_attr, depth=0, max_depth=None)
 		"""
 		Construit récursivement un arbre de décision pour la classification.
 
@@ -34,13 +32,6 @@ class DecisionTree:
 		Retour :
 			self : ...
 		"""
-
-#		if df.empty:
-#			return plurality_val(parent_df, target_attr)
-#		if len(df[target_attr].unique()) == 1:
-#			return df[target_attr].iloc[0]
-#		if not attributes:
-#			return plurality_val(df, target_attr)
 
 		A, threshold = importance(X, y)
 		tree = {A: {}}
