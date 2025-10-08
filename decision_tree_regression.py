@@ -237,8 +237,17 @@ y_pred_scratch = [predict_regression(tree, row) for _, row in X_test.iterrows()]
 end_pred = time.time()
 print(f"Temps de prédiction : {end_pred - start_pred:.4f} s\n")
 
-mse = mean_squared_error(y_test, y_pred_scratch)
-r2 = r2_score(y_test, y_pred_scratch)
+y_true = np.array(y_test)
+y_pred = np.array(y_pred_scratch)
+
+# Calcul du Mean Squared Error (MSE)
+mse = np.mean((y_true - y_pred) ** 2)
+
+# Calcul du R² score
+ss_total = np.sum((y_true - np.mean(y_true)) ** 2)  # somme des carrés totaux
+ss_res = np.sum((y_true - y_pred) ** 2)             # somme des carrés résiduels
+r2 = 1 - ss_res / ss_total
+
 print(f"MSE: {mse:.4f}\nR²: {r2:.4f}\n")
 
 
