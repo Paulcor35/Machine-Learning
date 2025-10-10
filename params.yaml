@@ -2,17 +2,17 @@
 DecisionTree:
 	scratch:
 		r:
-			max_depth: 6
+			max_depth:	6
 			min_samples_split: 5
 			threshold_sample: 50
-			min_gain: 1e-6
+			min_gain:	1e-6
 		c:
-			max_depth: 6
+			max_depth:	6
 			min_samples_split: 5
 			threshold_sample: 50
 	scikit:
 		r:
-			criterion: "squared_error"
+			criterion:	"squared_error"
 			max_depth:	5
 			random_state:	42
 		c:
@@ -29,17 +29,18 @@ RandomForest:
 Ridge:
 	scratch:
 		r:
+			lambda:		323.745754281764
 	scikit:
 		r:
 Lasso:
 	scratch:
 		r:
-			learning_rate: 0.05
-			iterations: 5000
-			l1_penalty: 0.01
+			learning_rate:	0.05
+			iterations:	5000
+			l1_penalty:	0.01
 	scikit:
 		r:
-			alpha: 0.01
+			alpha:		0.01
 			max_iter:	5000
 SVM:
 	scratch:
