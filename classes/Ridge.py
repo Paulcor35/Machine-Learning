@@ -1,55 +1,52 @@
 #!/usr/bin/python3
 # -*- Mode: Python; tab-width: 4; indent-tabs-mode: t; c-basic-offset: 4 -*- #
-import numpy as np
-import pandas as pd
-import utils
 
+import numpy as np
 
 class Ridge:
-	typ = ["r"]
+    """
+    Ridge regression (fermée) avec biais non régularisé.
+    API minimale attendue par votre pipeline:
+      - attribut 'typ' indiquant les types supportés (ici régression -> 'r')
+      - fit(X, y) -> self
+      - predict(X) -> y_pred
+      - get_params/set_params (compat utilitaires)
+    """
+    typ = ['r']
 
-	def __init__(self, lamb=-1.0):
-		self.lamb = lamb
+    def __init__(self, alpha: float = 1.0):
+        self.alpha = float(alpha)
+        self.w = None  # vecteur des coefficients [intercept, w1, ..., wp]
 
-	def fit(self, X, y, lamb=None):
-		"""
-		Ridge regression implementation
-		β = (X^t X + λI)^{-1} X^t y
-		"""
-		if lamb == None and self.lamb == -1.0:
-			self.find_best_lambda(X, y)
+    def fit(self, X, y):
+        X = np.asarray(X, dtype=float)
+        y = np.asarray(y, dtype=float).reshape(-1)
 
-		X_np = X.values if hasattr(X, 'values') else X
-		y_np = y.values if hasattr(y, 'values') else y
+        # Ajout du biais
+        Xb = np.column_stack([np.ones(X.shape[0]), X])
 
-		X_np = np.column_stack([np.ones(X_np.shape[0]), X_np])
+        n_features = Xb.shape[1]
+        I = np.eye(n_features)
+        I[0, 0] = 0.0  # ne pas régulariser l’intercept
 
-		n_features = X_np.shape[1]
-		XtX = X_np.T @ X_np
-		regularization = self.lamb * np.eye(n_features)
-		# Don't regularize the intercept term
-		regularization[0, 0] = 0
+        # Solution fermée : w = (X^T X + alpha I)^(-1) X^T y
+        A = Xb.T @ Xb + self.alpha * I
+        b = Xb.T @ y
+        self.w = np.linalg.solve(A, b)
+        return self
 
-		self.beta = np.linalg.inv(XtX + regularization) @ X_np.T @ y_np
+    def predict(self, X):
+        if self.w is None:
+            raise RuntimeError("Ridge non entraîné : appelez fit(X, y) d'abord.")
+        X = np.asarray(X, dtype=float)
+        Xb = np.column_stack([np.ones(X.shape[0]), X])
+        return Xb @ self.w
 
-		return self
+    # Petites méthodes utilitaires pour ressembler à scikit
+    def get_params(self, deep=True):
+        return {"alpha": self.alpha}
 
-	def predict(self, X):
-        if self.b is None:
-            raise RuntimeError("Le modèle n'est pas entraîné.")
-		return X @ self.beta
-
-	def find_best_lambda(self, X, y):
-		best_lambda = 1.0
-		best_mse = float('inf')
-
-		for lamb in np.logspace(-3, 3, 50):
-			X_train, X_val, y_train, y_val = split(X, y)
-			beta = self.fit(X_train, y_train, lamb)
-			y_pred = self.predict(X, beta)
-			mse = utils.calculate_mse(y_val, y_pred)
-			if mse < best_mse:
-				best_mse = mse
-				best_labmda = lamb
-
-		self.lamb = best_lambda
+    def set_params(self, **params):
+        if "alpha" in params:
+            self.alpha = float(params["alpha"])
+        return self

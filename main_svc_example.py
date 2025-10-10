@@ -5,7 +5,7 @@ from svc_scratch import SVC, benchmark_model, plot_roc, plot_pr, plot_linear_imp
 from sklearn.svm import LinearSVC, SVC as SKSVC
 
 # --------- préparation données ----------
-df = pd.read_csv("data/Carseats.csv")
+df = pd.read_csv("Data-20251001/Carseats.csv")
 df = df.drop(columns=["Unnamed: 0"], errors="ignore")
 df[["High","Urban","US"]] = df[["High","Urban","US"]].replace({"Yes":1,"No":0})
 df = pd.get_dummies(df, columns=["ShelveLoc"], drop_first=True)

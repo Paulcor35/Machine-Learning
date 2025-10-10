@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import time
-from tabulate import tabulate
 from sklearn.svm import LinearSVR
 
 # ====================================
@@ -80,7 +79,7 @@ def regression_metrics(y_true, y_pred):
 # ====================================
 #   1. Chargement et préparation des données
 # ====================================
-df = pd.read_csv("data/ozone_complet.txt", sep=";")
+df = pd.read_csv("Data-20251001/ozone_complet.txt", sep=";")
 df = df.fillna(df.mean())
 df = df.drop(columns=["id"], errors="ignore")
 df = df.drop(columns=["maxO3v"], errors="ignore")
@@ -131,7 +130,6 @@ for C in grid_C:
 #   3. Affichage du tableau complet
 # ====================================
 headers = ["C", "epsilon", "MSE", "MAE", "R²", "Temps (s)"]
-print(tabulate(results, headers=headers, floatfmt=".4f", tablefmt="fancy_grid"))
 
 # ====================================
 #   4. Meilleur modèle

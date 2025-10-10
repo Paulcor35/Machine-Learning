@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 # -*- Mode: Python; tab-width: 4; indent-tabs-mode: t; c-basic-offset: 4 -*- #
+
 import numpy as np
 import pandas as pd
 import utils
@@ -24,8 +25,8 @@ class SVC:
 	"""
 	typ = ["c"]
 
-	def __init__(self, learning_rate: float = 1e-3, C: float = 1.0,
-				 n_iters: int = 10, shuffle: bool = True, random_state: int = 0):
+	def __init__(self, learning_rate: float = 1e-4, C: float = 9.0,
+				 n_iters: int = 100, shuffle: bool = True, random_state: int = 0):
 		self.lr = learning_rate
 		self.C = C
 		self.n_iters = n_iters
@@ -59,11 +60,15 @@ class SVC:
 					self.b  += self.lr * (self.C * y_i)
 		return self
 
-	def predict(self, X: np.ndarray) -> np.ndarray:
+	def decision_function(self, X: np.ndarray) -> np.ndarray:
 		if self.w is None:
 			raise RuntimeError("Le modèle n'est pas entraîné.")
 		return X @ self.w + self.b
 
-	def predict_with_threshold(self, X: np.ndarray, threshold: float = 0.0) -> Tuple[np.ndarray, np.ndarray]:
+	def predict(self, X: np.ndarray) -> np.ndarray:
+		s = self.decision_function(X)
+		return (s >= 0.0).astype(int)
+	
+	def predict_with_threshold(self, X: np.ndarray, threshold: float = 0.0) -> tuple[np.ndarray, np.ndarray]:
 		s = self.decision_function(X)
 		return (s >= threshold).astype(int), s
