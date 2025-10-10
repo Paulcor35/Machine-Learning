@@ -44,11 +44,11 @@ Lasso:
 SVM:
   scratch:
     r:
-			learning_rate: 1e-3
-			C: 5
-			epsilon: 0.5
-			n_iters: 2000
-			random_state: 0
+      learning_rate: 1e-3
+      C: 5
+      epsilon: 0.5
+      n_iters: 2000
+      random_state: 0
     c:
       learning_rate:  1e-4
       C:    9.0
@@ -57,10 +57,10 @@ SVM:
       random_state:  0
   scikit:
     r:
-			C: 5
-			epsilon: 0.5
-			n_iters: 2000
-			random_state: 0
+      C: 5
+      epsilon: 0.5
+      n_iters: 2000
+      random_state: 0
     c:
       C:    9.0
       loss:    "hinge"
