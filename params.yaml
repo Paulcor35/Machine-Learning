@@ -1,0 +1,49 @@
+# -*- Mode: YAML; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*- #
+DecisionTree:
+	scratch:
+		r:
+		c:
+	scikit:
+		r:
+			criterion:	"squared_error"
+			max_depth:	5
+			random_state:	42
+		c:
+			criterion:	"entropy"
+			random_state:	42
+RandomForest:
+	scratch:
+		r:
+		c:
+	scikit:
+		r:
+		c:
+Ridge:
+	scratch:
+		r:
+	scikit:
+		r:
+Lasso:
+	scratch:
+		r:
+	scikit:
+		r:
+			alpha:		
+			max_iter:	2000
+SVM:
+	scratch:
+		r:
+		c:
+			learning_rate:	1e-4
+			C:		9.0
+			n_iters:	100
+			shuffle:	true
+			random_state:	0
+	scikit:
+		r:
+		c:
+			C:		9.0
+			loss:		"hinge"
+			fit_intercept:	true
+			max_iter:	10000
+			random_state:	0
