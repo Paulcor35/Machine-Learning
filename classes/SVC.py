@@ -34,6 +34,7 @@ class SVC:
 		self.random_state = random_state
 		self.w: np.ndarray | None = None
 		self.b: float = 0.0
+		self.history = {}
 
 	# --- fit / predict ---
 	def fit(self, X: np.ndarray, y: np.ndarray) -> "SVC":
@@ -42,6 +43,8 @@ class SVC:
 		rng = np.random.default_rng(self.random_state)
 		self.w = np.zeros(d, dtype=float)
 		self.b = 0.0
+		
+		self.history = {"train_loss": [], "train_acc": []}
 
 		for _ in range(self.n_iters):
 			if self.shuffle:
@@ -58,6 +61,20 @@ class SVC:
 					# hinge active : régul + terme de classification
 					self.w -= self.lr * (self.w - self.C * y_i * x_i)
 					self.b  += self.lr * (self.C * y_i)
+
+			# --- LOG de l'époque (courbes)
+			scores = X @ self.w + self.b
+            # hinge loss moyenne + régul L2
+			margin_all = y * scores
+			hinge = np.maximum(0.0, 1.0 - margin_all)
+			loss = 0.5 * np.sum(self.w**2) + self.C * np.mean(hinge)
+
+            # accuracy sur le train (y est en {-1,+1})
+			y_hat = np.where(scores >= 0.0, 1.0, -1.0)
+			acc = float((y_hat == y).mean())
+			
+			self.history["train_loss"].append(float(loss))
+			self.history["train_acc"].append(acc)
 		return self
 
 	def decision_function(self, X: np.ndarray) -> np.ndarray:
@@ -68,7 +85,3 @@ class SVC:
 	def predict(self, X: np.ndarray) -> np.ndarray:
 		s = self.decision_function(X)
 		return (s >= 0.0).astype(int)
-	
-	def predict_with_threshold(self, X: np.ndarray, threshold: float = 0.0) -> tuple[np.ndarray, np.ndarray]:
-		s = self.decision_function(X)
-		return (s >= threshold).astype(int), s

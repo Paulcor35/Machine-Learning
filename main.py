@@ -59,10 +59,12 @@ def main():
 
 	model_sci = utils.algos_sci_map[args.algorithm][args.type]()
 	
-	if model.typ == "c":
+	if model.typ[0] == "c":
 		res = bench.benchmark_classification(model, X_train, y_train, X_test, y_test)
 		res_sci = bench.benchmark_classification(model_sci, X_train, y_train, X_test, y_test)
 
+		plot.print_classification_report([res, res_sci], [args.algorithm, f"{args.algorithm}_scikit"])
+		plot.plot_classification_learning_curves(model.history, title=f"{args.algorithm} - learning curves")
 		plot.plot_roc([res, res_sci], [args.algorithm, f"{args.algorithm}_scikit"])
 		plot.plot_pr([res, res_sci], [args.algorithm, f"{args.algorithm}_scikit"])
 	else:
@@ -70,6 +72,7 @@ def main():
 		res_sci = bench.benchmark_regression(model_sci, X_train, y_train, X_test, y_test)
 
 		plot.print_regression_report([res, res_sci], [args.algorithm, f"{args.algorithm}_scikit"])
+		plot.plot_regression_learning_curves(model.history, title=f"{args.algorithm} - learning curves")
 		plot.plot_regression_parity(y_test.to_numpy(dtype=float), [res, res_sci], [args.algorithm, f"{args.algorithm}_scikit"])
 
 	_maybe_plot_importances(res["model"], args.algorithm, feature_names)

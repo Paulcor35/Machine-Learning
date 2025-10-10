@@ -15,6 +15,7 @@ from sklearn.tree import DecisionTreeClassifier as SkDecisionTreeClassifier, Dec
 from sklearn.ensemble import RandomForestClassifier as SkRandomForestClassifier, RandomForestRegressor as SkRandomForestRegressor
 
 from classes.Lasso import Lasso
+from classes.Ridge import Ridge
 from classes.DecisionTreeClassifier import DecisionTreeClassifier
 from classes.DecisionTreeRegressor import DecisionTreeRegressor
 from classes.SVC import SVC
@@ -92,16 +93,15 @@ def get_class(class_name: str, typ: str):
       - RandomForestClassifier.py -> class RandomForestClassifier(…)
       - RandomForestRegressor.py  -> class RandomForestRegressor(…)
       - Ridge.py -> class Ridge(…)
-      - (optionnel) Lasso.py -> class Lasso(…)
+      - Lasso.py -> class Lasso(…)
     """
-    # SVM -> SVC (c) / SVR (r)
+
     if class_name == "SVM":
         if typ == "c":
             return SVC
         else:
             return SVR
 
-    # DecisionTree -> classifier/regressor maison
     if class_name == "DecisionTree":
         if typ == "c":
             return DecisionTreeClassifier
@@ -112,16 +112,13 @@ def get_class(class_name: str, typ: str):
     if class_name == "Lasso":
         return Lasso
     
-    # RandomForest -> classifier/regressor maison
     if class_name == "RandomForest":
         if typ == "c":
             return RandomForestClassifier
         else:
             return RandomForestRegressor
-
-    # Ridge (régression maison)
+        
     if class_name == "Ridge":
-        from classes.Ridge import Ridge
         return Ridge
     
     # Si algo inconnu
