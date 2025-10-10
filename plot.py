@@ -3,6 +3,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+def _safe_get(history: dict, key: str):
+    """Return history[key] if present and non-empty, else None."""
+    v = history.get(key, None)
+    return v if (v is not None and len(v) > 0) else None
+
 def plot_linear_importances(w: np.ndarray, feature_names: list[str], top_k: int = 15, title: str = "Importances (linéaire) - |w|"):
 	abs_w = np.abs(w)
 	k = min(top_k, len(abs_w))
@@ -20,6 +25,22 @@ def plot_linear_importances(w: np.ndarray, feature_names: list[str], top_k: int 
 	plt.show()
 
 # --- Classification ---
+def print_classification_report(models_results: list[dict], labels: list[str]) -> None:
+    """
+    Affiche Acc/Prec/Rec/F1 au seuil 0.0 (base) et au meilleur seuil (best),
+    + temps d'entraînement et d'inférence (scores).
+    """
+    print("\n=== Classification report ===")
+    for lab, res in zip(labels, models_results):
+        base = res["base_metrics"]   # {'acc','prec','rec','f1',...}
+        best = res["best_metrics"]   # idem + 'thr'
+        times = res["times"]         # {'fit', 'predict(scores)'}
+        print(
+            f"{lab:>20} | "
+            f"base: Acc={base['acc']:.3f} Prec={base['prec']:.3f} Rec={base['rec']:.3f} F1={base['f1']:.3f} | "
+            f"best@thr={best['thr']:.3f}: Acc={best['acc']:.3f} Prec={best['prec']:.3f} Rec={best['rec']:.3f} F1={best['f1']:.3f} | "
+            f"fit={times['fit']*1000:.1f} ms | pred={times['predict(scores)']*1000:.1f} ms")
+            
 def plot_roc(models_results: list[dict[str, any]], labels: list[str], title: str = "ROC - comparaison"):
 	plt.figure()
 	for res, lab in zip(models_results, labels):
@@ -45,6 +66,52 @@ def plot_pr(models_results: list[dict[str, any]], labels: list[str], title: str 
 	plt.title(title)
 	plt.legend()
 	plt.show()
+      
+def plot_classification_learning_curves(history: dict, title: str = "Classification – accuracy & loss"):
+    """
+    history: dict with any of the following (lists, length = #epochs or steps)
+      - 'train_loss', 'val_loss'
+      - 'train_acc',  'val_acc'
+      Optionally: 'train_f1', 'val_f1'  (we'll show them if present)
+    """
+    train_loss = _safe_get(history, "train_loss")
+    val_loss   = _safe_get(history, "val_loss")
+    train_acc  = _safe_get(history, "train_acc")
+    val_acc    = _safe_get(history, "val_acc")
+    train_f1   = _safe_get(history, "train_f1")
+    val_f1     = _safe_get(history, "val_f1")
+
+    epochs = None
+    for v in [train_loss, val_loss, train_acc, val_acc, train_f1, val_f1]:
+        if v is not None:
+            epochs = np.arange(1, len(v) + 1); break
+    if epochs is None:
+        raise ValueError("history is empty: provide at least one of train_loss/val_loss/train_acc/val_acc.")
+
+    # Loss
+    plt.figure()
+    if train_loss is not None: plt.plot(epochs, train_loss, label="train loss", linewidth=2)
+    if val_loss   is not None: plt.plot(epochs, val_loss,   label="val loss",   linewidth=2)
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title(f"{title} – loss")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    # Accuracy (+ F1 if provided)
+    if (train_acc is not None) or (val_acc is not None) or (train_f1 is not None) or (val_f1 is not None):
+        plt.figure()
+        if train_acc is not None: plt.plot(epochs, train_acc, label="train acc", linewidth=2)
+        if val_acc   is not None: plt.plot(epochs, val_acc,   label="val acc",   linewidth=2)
+        if train_f1  is not None: plt.plot(epochs, train_f1,  label="train F1",  linewidth=2, linestyle="--")
+        if val_f1    is not None: plt.plot(epochs, val_f1,    label="val F1",    linewidth=2, linestyle="--")
+        plt.xlabel("Epoch")
+        plt.ylabel("Accuracy / F1")
+        plt.title(f"{title} – accuracy")
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
 # --- Régression ---
 def print_regression_report(models_results: list[dict], labels: list[str]) -> None:
@@ -57,7 +124,7 @@ def print_regression_report(models_results: list[dict], labels: list[str]) -> No
 
 def plot_regression_parity(y_true: np.ndarray, models_results: list[dict], labels: list[str],
                            title: str = "Predicted vs Actual"):
-	"""Nuage Pred vs Actual (parity plot). Idéal pour voir l’alignement avec y=x."""
+	"""Nuage Pred vs Actual (parity plot). Idéal pour voir l'alignement avec y=x."""
 	plt.figure()
 	ymin, ymax = np.min(y_true), np.max(y_true)
 	for res, lab in zip(models_results, labels):
@@ -69,3 +136,60 @@ def plot_regression_parity(y_true: np.ndarray, models_results: list[dict], label
 	plt.legend()
 	plt.tight_layout()
 	plt.show()
+
+def plot_regression_learning_curves(history: dict, title: str = "Regression – loss & score"):
+    """
+    history: dict with any of the following (lists, length = #epochs or steps)
+      - 'train_mse', 'val_mse'         (treated as loss)
+      - 'train_mae', 'val_mae'         (optional, drawn on a second figure)
+      - 'train_r2',  'val_r2'          (accuracy-like score ↑)
+    """
+    train_mse = _safe_get(history, "train_mse")
+    val_mse   = _safe_get(history, "val_mse")
+    train_mae = _safe_get(history, "train_mae")
+    val_mae   = _safe_get(history, "val_mae")
+    train_r2  = _safe_get(history, "train_r2")
+    val_r2    = _safe_get(history, "val_r2")
+
+    epochs = None
+    for v in [train_mse, val_mse, train_mae, val_mae, train_r2, val_r2]:
+        if v is not None:
+            epochs = np.arange(1, len(v) + 1); break
+    if epochs is None:
+        raise ValueError("history is empty: provide at least one of train_mse/val_mse/train_r2/val_r2.")
+
+    # Loss (MSE)
+    if (train_mse is not None) or (val_mse is not None):
+        plt.figure()
+        if train_mse is not None: plt.plot(epochs, train_mse, label="train MSE", linewidth=2)
+        if val_mse   is not None: plt.plot(epochs, val_mse,   label="val MSE",   linewidth=2)
+        plt.xlabel("Epoch")
+        plt.ylabel("MSE (loss ↓)")
+        plt.title(f"{title} – MSE")
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+    # MAE
+    if (train_mae is not None) or (val_mae is not None):
+        plt.figure()
+        if train_mae is not None: plt.plot(epochs, train_mae, label="train MAE", linewidth=2)
+        if val_mae   is not None: plt.plot(epochs, val_mae,   label="val MAE",   linewidth=2)
+        plt.xlabel("Epoch")
+        plt.ylabel("MAE (↓)")
+        plt.title(f"{title} – MAE")
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+    # Score (R²)
+    if (train_r2 is not None) or (val_r2 is not None):
+        plt.figure()
+        if train_r2 is not None: plt.plot(epochs, train_r2, label="train R²", linewidth=2)
+        if val_r2   is not None: plt.plot(epochs, val_r2,   label="val R²",   linewidth=2)
+        plt.xlabel("Epoch")
+        plt.ylabel("R² (↑)")
+        plt.title(f"{title} – R²")
+        plt.legend()
+        plt.tight_layout()
+        plt.show()

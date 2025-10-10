@@ -11,9 +11,8 @@ print(df.head())
 target_col = "maxO3"
 
 # ------------------------- Gestion des valeurs manquantes -------------------------
-# Remplacer les valeurs manquantes par la moyenne de chaque colonne
+# Remplacer les valeurs manquantes par la moyenne de chaque colonne numérique
 df = df.fillna(df.mean(numeric_only=True))
-
 
 # ------------------------- StandardScaler (from scratch) -------------------------
 def standard_scaler_fit(X):
@@ -27,8 +26,8 @@ def standard_scaler_transform(X, mean, std):
     return (X - mean) / std
 
 # ------------------------- Préparation des données -------------------------
-# On enlève la colonne indice et max03v pour ne pas avoir de fuite de données
-X = df.drop([target_col, "id"], axis=1, errors='ignore')
+# Retirer les colonnes inutiles ou pouvant causer une fuite de données
+X = df.drop([target_col, "id", "maxO3v"], axis=1, errors='ignore')
 y = df[target_col]
 
 # Calcul des statistiques (moyenne, écart-type) sur X

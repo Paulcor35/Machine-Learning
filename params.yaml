@@ -2,14 +2,22 @@
 DecisionTree:
 	scratch:
 		r:
+			max_depth: 6
+			min_samples_split: 5
+			threshold_sample: 50
+			min_gain: 1e-6
 		c:
+			max_depth: 6
+			min_samples_split: 5
+			threshold_sample: 50
 	scikit:
 		r:
-			criterion:	"squared_error"
+			criterion: "squared_error"
 			max_depth:	5
 			random_state:	42
 		c:
 			criterion:	"entropy"
+			max_depth:	6
 			random_state:	42
 RandomForest:
 	scratch:
