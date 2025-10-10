@@ -74,7 +74,7 @@ def regression_metrics(y_true, y_pred):
 #------------------------------------------------------------------------------
 #   Chargement et préparation des données
 #------------------------------------------------------------------------------
-df = pd.read_csv("data/ozone_complet.txt", sep=";")
+df = pd.read_csv("Data-20251001/ozone_complet.txt", sep=";")
 df = df.fillna(df.mean())
 df = df.drop(columns=["id"], errors="ignore")
 df = df.drop(columns=["maxO3v"], errors="ignore")
@@ -130,7 +130,6 @@ for lr in grid_lr:
 #   Affichage des résultats sous forme de tableau
 #------------------------------------------------------------------------------
 headers = ["Learning Rate", "L1 Penalty", "MSE", "MAE", "R²", "Temps (s)"]
-print(tabulate(results, headers=headers, floatfmt=".4f", tablefmt="fancy_grid"))
 
 #------------------------------------------------------------------------------
 #   Affichage du meilleur modèle
@@ -161,6 +160,7 @@ plt.show()
 # Comparaison avec scikit-learn
 # --------------------------------------------------------------------------
 alpha = best_params['l1_penalty']  # L1 penalty
+print("alpha: ",alpha)
 
 start_time = time.time()
 sk_model = Lasso(alpha=alpha, max_iter=2000)

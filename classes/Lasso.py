@@ -44,9 +44,9 @@ class Lasso:
     typ = ['r']
 
     def __init__(self,
-                 learning_rate: float = 0.01,
+                 learning_rate: float = 0.1,
                  max_iter: int = 1000,
-                 l1_penalty: float = 0.1,
+                 l1_penalty: float = 0.01,
                  tol: float = 1e-6,
                  fit_intercept: bool = True,
                  normalize: bool = True,
