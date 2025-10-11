@@ -31,6 +31,7 @@ Ridge:
       lambda: 323.745754281764
   scikit:
     r:
+      alpha:  323.745754281764
 Lasso:
   scratch:
     r:

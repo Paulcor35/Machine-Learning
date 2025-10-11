@@ -5,6 +5,7 @@ import os
 import pandas as pd
 import sys
 import logging
+import yaml
 from platform import system
 from importlib import import_module
 
@@ -23,115 +24,127 @@ from classes.SVR import SVR
 from classes.RandomForestClassifier import RandomForestClassifier
 from classes.RandomForestRegressor import RandomForestRegressor
 
-# -------------------------------------------------
-# Logging minimal (utile pour debug si besoin)
-# -------------------------------------------------
 logging.basicConfig(level=logging.WARNING)
 log = logging.getLogger(__name__)
 
 def getPath(script_dir, file_dir):
-    plat = system()
-    if plat == "Windows":
-        script_dir = script_dir.replace("/", "\\")
-        file_dir = file_dir.replace("/", "\\")
-    else:
-        script_dir = script_dir.replace("\\", "/")
-        file_dir = file_dir.replace("\\", "/")
-    return script_dir, file_dir
+	plat = system()
+	if plat == "Windows":
+		script_dir = script_dir.replace("/", "\\")
+		file_dir = file_dir.replace("/", "\\")
+	else:
+		script_dir = script_dir.replace("\\", "/")
+		file_dir = file_dir.replace("\\", "/")
+	return script_dir, file_dir
 
-def split(X, y, ratio=0.8):
-    idx = int(ratio * len(X))
-    X_train, X_test = X[:idx], X[idx:]
-    y_train, y_test = y[:idx], y[idx:]
-    return X_train, X_test, y_train, y_test
+def split(X, y, test_size=0.2, random_state=42):
+	np.random.seed(random_state)
+	indices = np.arange(len(y))
+	np.random.shuffle(indices)
+	split = int(len(y) * (1 - test_size))
+	train_idx, test_idx = indices[:split], indices[split:]
+	return X.iloc[train_idx], X.iloc[test_idx], y.iloc[train_idx], y.iloc[test_idx]
 
 def calculate_mse(y_true, y_pred):
-    return np.mean((y_true - y_pred) ** 2)
+	return np.mean((y_true - y_pred) ** 2)
 
 def read_file(fname, sep):
-    # FIX: le sep était passé à os.path.join par erreur
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    script_dir, file_dir = getPath(script_dir, fname)
-    full_path = os.path.join(script_dir, file_dir)
-    log.debug(f"Lecture fichier: {full_path} (sep='{sep}')")
-    return pd.read_csv(full_path, sep=sep)
+	# FIX: le sep était passé à os.path.join par erreur
+	script_dir = os.path.dirname(os.path.abspath(__file__))
+	script_dir, file_dir = getPath(script_dir, fname)
+	full_path = os.path.join(script_dir, file_dir)
+	log.debug(f"Lecture fichier: {full_path} (sep='{sep}')")
+	return pd.read_csv(full_path, sep=sep)
 
 def read_regression(fname):
-    df = read_file(fname, ";")
-    df = df.fillna(df.mean())
-    df = df.drop(columns=["id"], errors="ignore")
-    df = df.drop(columns=["maxO3v"], errors="ignore")
-    return df
+	df = read_file(fname, ";")
+	df = df.fillna(df.mean())
+	df = df.drop(columns=["id"], errors="ignore")
+	#df = df.drop(columns=["maxO3v"], errors="ignore")
+	return df
 
 def read_classif(fname):
-    df = read_file(fname, ",")
-    df = df.drop(columns=["Unnamed: 0"], errors="ignore")
-    # encodage binaire simple
-    for col in ["High", "Urban", "US"]:
-        if col in df.columns:
-            df[col] = df[col].replace({"Yes": 1, "No": 0})
-    # one-hot ShelveLoc si présent
-    if "ShelveLoc" in df.columns:
-        df = pd.get_dummies(df, columns=["ShelveLoc"], drop_first=True)
-    return df
+	df = read_file(fname, ",")
+	df = df.drop(columns=["Unnamed: 0"], errors="ignore")
+	# encodage binaire simple
+	for col in ["High", "Urban", "US"]:
+		if col in df.columns:
+			df[col] = df[col].replace({"Yes": 1, "No": 0})
+	# one-hot ShelveLoc si présent
+	if "ShelveLoc" in df.columns:
+		df = pd.get_dummies(df, columns=["ShelveLoc"], drop_first=True)
+	return df
 
 def read_file_wtype(fname, typ):
-    if typ == "r":
-        return read_regression(fname)
-    else:
-        return read_classif(fname)
+	if typ == "r":
+		return read_regression(fname)
+	else:
+		return read_classif(fname)
+
+def read_params():
+	script_dir = os.path.dirname(os.path.abspath(__file__))
+	script_dir, file_dir = getPath(script_dir, "params.yaml")
+	with open(os.path.join(script_dir, file_dir), "r") as fp:
+		params = yaml.safe_load(fp)
+	return params
+
+def apply_params(model, algo_name, typ, params, is_sci=False):
+	par = params[algo_name]["scikit" if is_sci else "scratch"][typ]
+	if par != {}:
+		for k, v in par.items():
+			setattr(model, k, v)
 
 def get_class(class_name: str, typ: str):
-    """
-    Retourne la classe *maison* en fonction de l'algorithme ET du type ('r' ou 'c').
-    Pas de mapping dict : uniquement des conditions.
-    Attend les fichiers/modules suivants dans ton dossier classes/ :
-      - SVC.py -> class SVC(…)             (classification)
-      - SVR.py -> class SVR(…)             (régression)
-      - DecisionTreeClassifier.py -> class DecisionTreeClassifier(…)
-      - DecisionTreeRegressor.py  -> class DecisionTreeRegressor(…)
-      - RandomForestClassifier.py -> class RandomForestClassifier(…)
-      - RandomForestRegressor.py  -> class RandomForestRegressor(…)
-      - Ridge.py -> class Ridge(…)
-      - Lasso.py -> class Lasso(…)
-    """
+	"""
+	Retourne la classe *maison* en fonction de l'algorithme ET du type ('r' ou 'c').
+	Pas de mapping dict : uniquement des conditions.
+	Attend les fichiers/modules suivants dans ton dossier classes/ :
+	  - SVC.py -> class SVC(…)			 (classification)
+	  - SVR.py -> class SVR(…)			 (régression)
+	  - DecisionTreeClassifier.py -> class DecisionTreeClassifier(…)
+	  - DecisionTreeRegressor.py  -> class DecisionTreeRegressor(…)
+	  - RandomForestClassifier.py -> class RandomForestClassifier(…)
+	  - RandomForestRegressor.py  -> class RandomForestRegressor(…)
+	  - Ridge.py -> class Ridge(…)
+	  - Lasso.py -> class Lasso(…)
+	"""
 
-    if class_name == "SVM":
-        if typ == "c":
-            return SVC
-        else:
-            return SVR
+	if class_name == "SVM":
+		if typ == "c":
+			return SVC
+		else:
+			return SVR
 
-    if class_name == "DecisionTree":
-        if typ == "c":
-            return DecisionTreeClassifier
-        else:
-            
-            return DecisionTreeRegressor
-        
-    if class_name == "Lasso":
-        return Lasso
-    
-    if class_name == "RandomForest":
-        if typ == "c":
-            return RandomForestClassifier
-        else:
-            return RandomForestRegressor
-        
-    if class_name == "Ridge":
-        return Ridge
-    
-    # Si algo inconnu
-    raise ValueError(f"Aucune classe custom gérée pour '{class_name}' avec typ='{typ}'.")
+	if class_name == "DecisionTree":
+		if typ == "c":
+			return DecisionTreeClassifier
+		else:
+
+			return DecisionTreeRegressor
+
+	if class_name == "Lasso":
+		return Lasso
+
+	if class_name == "RandomForest":
+		if typ == "c":
+			return RandomForestClassifier
+		else:
+			return RandomForestRegressor
+
+	if class_name == "Ridge":
+		return Ridge
+
+	# Si algo inconnu
+	raise ValueError(f"Aucune classe custom gérée pour '{class_name}' avec typ='{typ}'.")
 
 type_map = {"r": "regression", "c": "classification"}
 algos_sci_map = {
-    "DecisionTree": {"r": SkDecisionTreeRegressor, "c": SkDecisionTreeClassifier},
-    "RandomForest": {"r": SkRandomForestRegressor, "c": SkRandomForestClassifier},
-    "Ridge": {"r": SkRidge},
-    "Lasso": {"r": SkLasso},
-    "SVM": {"c": SkSVC, "r": SkSVR},
+	"DecisionTree": {"r": SkDecisionTreeRegressor, "c": SkDecisionTreeClassifier},
+	"RandomForest": {"r": SkRandomForestRegressor, "c": SkRandomForestClassifier},
+	"Ridge": {"r": SkRidge},
+	"Lasso": {"r": SkLasso},
+	"SVM": {"c": SkSVC, "r": SkSVR},
 }
 
-# export type_map si utilisé ailleurs
+# export
 __all__ = ["type_map", "algos_sci_map", "get_class", "read_file_wtype", "split", "calculate_mse"]

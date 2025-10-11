@@ -7,14 +7,6 @@ import utils
 import bench
 import plot
 
-# from classes.Lasso import Lasso
-# from classes.DecisionTreeClassifier import DecisionTreeClassifier
-# from classes.DecisionTreeRegressor import DecisionTreeRegressor
-# from classes.SVC import SVC
-# from classes.SVR import SVR
-# from classes.RandomForestClassifier import RandomForestClassifier
-# from classes.RandomForestRegressor import RandomForestRegressor
-
 parser = argparse.ArgumentParser(description="Machine learning algorithms implementation", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("-f", "--file", help="input file", required=True)
 parser.add_argument("-t", "--type", help="algorithm type", choices=["r", "regression", "c", "classification"], default="r")
@@ -42,6 +34,8 @@ def main():
 			raise TypeError("bad type")
 		except Exception as e:
 			e.add_note(f"{args.algorithm} doesn't support {utils.type_map[args.type]}")
+	params = utils.read_params()
+
 	# Read and prepare data
 	df = utils.read_file_wtype(args.file, args.type)
 
@@ -50,7 +44,7 @@ def main():
 		.select_dtypes(include=[np.number])
 		.to_numpy(dtype=float, copy=True))
 	feature_names = (df.drop(columns=[args.to_find]).select_dtypes(include=[np.number]).columns.tolist())
-	
+
 	X_train, X_test, y_train, y_test = utils.split(X, y)
 
 	mu = X_train.mean(axis=0); sigma = X_train.std(axis=0); sigma[sigma==0] = 1.0
@@ -58,7 +52,7 @@ def main():
 	X_test  = (X_test  - mu)/sigma
 
 	model_sci = utils.algos_sci_map[args.algorithm][args.type]()
-	
+
 	if model.typ[0] == "c":
 		res = bench.benchmark_classification(model, X_train, y_train, X_test, y_test)
 		res_sci = bench.benchmark_classification(model_sci, X_train, y_train, X_test, y_test)
