@@ -32,7 +32,7 @@ class SVR:
 		sinon        :  grad_w = w,            grad_b = 0
 	"""
 
-	typ = ["r"]
+	typ = "r"
 
 	def __init__(self, learning_rate: float = 1e-3, C: float = 1.0,
 				 epsilon: float = 0.1, n_iters: int = 100,

@@ -23,7 +23,7 @@ class SVC:
 	random_state : int
 		Graine pour la permutation.
 	"""
-	typ = ["c"]
+	typ = "c"
 
 	def __init__(self, learning_rate: float = 1e-4, C: float = 9.0,
 				 n_iters: int = 100, shuffle: bool = True, random_state: int = 0):

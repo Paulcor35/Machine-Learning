@@ -27,7 +27,7 @@ class DecisionTreeClassifier:
         max_depth, min_samples_split, min_samples_leaf, max_thresholds
     """
 
-    typ = ['c']
+    typ = 'c'
 
     def __init__(self,
                  max_depth: int = 10,

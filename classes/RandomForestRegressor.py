@@ -47,7 +47,7 @@ class RandomForestRegressor:
     get_params / set_params
     """
 
-    typ = ['r']
+    typ = 'r'
 
     def __init__(self,
                  n_estimators: int = 100,

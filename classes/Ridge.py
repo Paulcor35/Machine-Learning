@@ -14,7 +14,7 @@ class Ridge:
       - get_params / set_params
       - w (alias de coef_) pour compat avec tes plots
     """
-    typ = ['r']
+    typ = 'r'
 
     def __init__(self, alpha: float = 1.0):
         self.alpha = float(alpha)

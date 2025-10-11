@@ -43,7 +43,7 @@ def split(X, y, test_size=0.2, random_state=42):
 	np.random.shuffle(indices)
 	split = int(len(y) * (1 - test_size))
 	train_idx, test_idx = indices[:split], indices[split:]
-	return X.iloc[train_idx], X.iloc[test_idx], y.iloc[train_idx], y.iloc[test_idx]
+	return X[train_idx], X[test_idx], y[train_idx], y[test_idx]
 
 def calculate_mse(y_true, y_pred):
 	return np.mean((y_true - y_pred) ** 2)

@@ -41,7 +41,7 @@ class Lasso:
     random_state  : int|None       (non utilisé ici, placeholder)
     """
 
-    typ = ['r']
+    typ = 'r'
 
     def __init__(self,
                  learning_rate: float = 0.1,

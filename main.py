@@ -53,7 +53,7 @@ def main():
 
 	model_sci = utils.algos_sci_map[args.algorithm][args.type]()
 
-	if model.typ[0] == "c":
+	if ModelClass.typ == "c":
 		res = bench.benchmark_classification(model, X_train, y_train, X_test, y_test)
 		res_sci = bench.benchmark_classification(model_sci, X_train, y_train, X_test, y_test)
 

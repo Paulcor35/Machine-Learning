@@ -28,7 +28,7 @@ RandomForest:
 Ridge:
   scratch:
     r:
-      lambda: 323.745754281764
+      alpha: 323.745754281764
   scikit:
     r:
       alpha:  323.745754281764

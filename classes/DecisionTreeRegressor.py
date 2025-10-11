@@ -83,11 +83,12 @@ class DecisionTreeRegressor:
     Arbre de régression simplifié "from scratch" avec splits numériques uniquement.
     """
 
+    typ = "r"
+
     def __init__(self, max_depth=5, min_samples_split=5):
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
         self.tree = None
-        self.typ = ["r"]
 
     def _build_tree(self, X, y, idx, depth=0, parent_mean=None):
         if len(idx) == 0:

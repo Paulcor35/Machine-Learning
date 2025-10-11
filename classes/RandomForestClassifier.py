@@ -51,7 +51,7 @@ class RandomForestClassifier:
     get_params / set_params
     """
 
-    typ = ['c']
+    typ = 'c'
 
     def __init__(self,
                  n_estimators: int = 100,
