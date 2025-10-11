@@ -112,7 +112,7 @@ for C in grid_C:
     for eps in grid_eps:
         start = time.time()
 
-        svr = LinearSVR(learning_rate=1e-3, C=C, epsilon=eps, n_iters=200, random_state=0)
+        svr = LinearSVR(learning_rate=1e-3, C=C, epsilon=eps, n_iters=2000, random_state=0)
         svr.fit(X_train, y_train_scaled)
         y_pred_scaled = svr.predict(X_test)
         y_pred = y_pred_scaled * y_std + y_mean
