@@ -45,11 +45,65 @@ def _fit_one_tree(args: Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray,
 
 class RandomForestRegressor:
     """
-    RandomForestRegressor (optimisé NumPy + parallélisable)
-    - Base learner: DecisionTreeRegressor (maison)
-    - Bootstrap des lignes + sous-échantillonnage des features
-    - Prédiction = moyenne des arbres
+    RandomForestRegressor (régression par forêts aléatoires) 
+    implémenté de manière vectorisée avec NumPy et support de la parallélisation CPU.
+
+    Principe
+    --------
+    Une forêt aléatoire est un ensemble d’arbres de décision indépendants,
+    chacun entraîné sur un sous-échantillon des données et un sous-ensemble aléatoire de variables.
+    La prédiction finale est la moyenne des prédictions de tous les arbres.
+
+    Paramètres
+    ----------
+    n_estimators : int
+        Nombre total d’arbres de la forêt.
+    max_depth : int | None
+        Profondeur maximale de chaque arbre. None = croissance complète (jusqu’à pureté totale).
+    min_samples_split : int
+        Nombre minimal d’échantillons requis pour effectuer un split.
+    max_features : {"sqrt", "log2", int, float, None}
+        Nombre de variables considérées à chaque split :
+          - "sqrt"  → √p (par défaut pour la régression)
+          - "log2"  → log₂(p)
+          - int     → nombre fixe de variables
+          - float   → proportion (0 < f ≤ 1)
+          - None    → toutes les variables
+    bootstrap : bool
+        Si True, chaque arbre est entraîné sur un échantillon bootstrap (avec remise).
+    random_state : int | None
+        Graine aléatoire pour la reproductibilité.
+    n_jobs : int
+        Nombre de processus parallèles utilisés (si > 1). 
+        -1 → tous les cœurs disponibles.
+    dtype : str
+        Type de données interne ("float32" par défaut, pour efficacité mémoire).
+
+    Notes
+    -----
+    - Pour chaque arbre :
+        1. Un échantillon de lignes est tiré aléatoirement (bootstrap).
+        2. Un sous-ensemble de colonnes (features) est sélectionné aléatoirement.
+        3. Un arbre de décision est entraîné sur ces sous-échantillons.
+
+    - La prédiction finale est obtenue par moyenne :
+        ŷ = (1 / T) Σ f_t(x)
+      où T = n_estimators et f_t(x) = prédiction de l’arbre t.
+
+    - L’entraînement peut être parallélisé grâce à `ProcessPoolExecutor` pour accélérer le fit
+      sur les machines multi-cœurs (utile pour de grands ensembles d’arbres).
+
+    - Attributs principaux :
+        • _estimators : liste des paires (arbre, indices_features)
+        • _rng         : générateur pseudo-aléatoire NumPy
+        • typ = 'r'    : indique une tâche de régression
+
+    Avantages
+    ----------
+    - Robuste au sur-apprentissage (grâce à l’agrégation).
+    - Gère naturellement la variance élevée des arbres individuels.
     """
+
     typ = 'r'
 
     def __init__(self,
@@ -132,23 +186,3 @@ class RandomForestRegressor:
 
         out /= float(len(self._estimators))
         return out.astype(self.dtype, copy=False)
-
-    # -------------------- compat scikit-like --------------------
-
-    def get_params(self, deep=True):
-        return {
-            "n_estimators": self.n_estimators,
-            "max_depth": self.max_depth,
-            "min_samples_split": self.min_samples_split,
-            "max_features": self.max_features,
-            "bootstrap": self.bootstrap,
-            "random_state": self.random_state,
-            "n_jobs": self.n_jobs,
-            "dtype": self.dtype,
-        }
-
-    def set_params(self, **params):
-        for k, v in params.items():
-            if hasattr(self, k):
-                setattr(self, k, v)
-        return self

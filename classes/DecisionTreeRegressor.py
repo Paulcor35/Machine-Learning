@@ -97,6 +97,62 @@ def _best_split_vectorized(X: np.ndarray,
 
 
 class DecisionTreeRegressor:
+    """
+    DecisionTreeRegressor (arbre de décision pour la régression) implémenté en NumPy,
+    avec recherche de split vectorisée et plusieurs garde-fous de régularisation.
+
+    Principe
+    --------
+    On construit récursivement un arbre binaire qui partitionne l’espace des features.
+    À chaque nœud, on choisit le split (feature j, seuil t) qui réduit le plus
+    la variance de la cible (critère MSE). Une feuille prédit la moyenne des y
+    présents dans cette feuille.
+
+    Paramètres
+    ----------
+    max_depth : int | None
+        Profondeur maximale de l’arbre. None → croissance jusqu’aux critères d’arrêt.
+    min_samples_split : int
+        Nombre minimal d’échantillons requis dans un nœud pour tenter un split.
+    min_samples_leaf : int
+        Nombre minimal d’échantillons requis dans chaque feuille après le split.
+    max_splits_per_feature : int | None
+        Limite le nombre de positions de coupure évaluées par feature au nœud (sous-échantillonnage
+        des positions valides) afin d’accélérer l’apprentissage. None → toutes les positions valides.
+    min_gain : float
+        Gain de variance minimal requis pour accepter un split (sinon on crée une feuille).
+
+    Notes
+    -----
+    - Critère : réduction de la variance (équivalent MSE). Le meilleur split minimise
+      la variance pondérée des sous-nœuds gauche/droite.
+    - Implémentation du split :
+        • Tri des valeurs d’une feature au nœud (stable) ;
+        • Calculs vectorisés via préfixes/cumsum pour évaluer toutes les coupures valides
+          en O(n) par feature ;
+        • Option `max_splits_per_feature` pour limiter le nombre de coupures testées
+          quand il y en a beaucoup (gros n, valeurs continues).
+    - Arrêts :
+        • profondeur atteinte (max_depth),
+        • effectif insuffisant (min_samples_split/min_samples_leaf),
+        • gain < min_gain,
+        • y constant dans le nœud.
+    - Prédiction : parcours de l’arbre jusqu’à une feuille, renvoie la moyenne locale.
+
+    Avantages
+    ---------
+    - Modèle interprétable et rapide sur données tabulaires.
+    - Supporte les relations non linéaires et les interactions entre variables.
+    - Version vectorisée significativement plus rapide que des boucles Python naïves.
+
+    Attributs principaux
+    --------------------
+    tree : _Node | None
+        Racine de l’arbre entraîné (structure récursive de nœuds).
+    typ : str
+        'r' pour indiquer une tâche de régression.
+    """
+
     typ = "r"
 
     def __init__(self,
@@ -164,19 +220,3 @@ class DecisionTreeRegressor:
         X = np.asarray(X, dtype=np.float32, order="C")
         return np.array([self._predict_one(X[i], self.tree) for i in range(X.shape[0])],
                         dtype=np.float32)
-
-    # compat scikit-like
-    def get_params(self, deep=True):
-        return {
-            "max_depth": self.max_depth,
-            "min_samples_split": self.min_samples_split,
-            "min_samples_leaf": self.min_samples_leaf,
-            "max_splits_per_feature": self.max_splits_per_feature,
-            "min_gain": self.min_gain,
-        }
-
-    def set_params(self, **params):
-        for k, v in params.items():
-            if hasattr(self, k):
-                setattr(self, k, v)
-        return self

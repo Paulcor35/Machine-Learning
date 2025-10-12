@@ -1,4 +1,4 @@
-# classes/SVC.py (version optimisée sans historique)
+# classes/SVC.py
 #!/usr/bin/python3
 # -*- Mode: Python; tab-width: 4; indent-tabs-mode: t; c-basic-offset: 4 -*-
 
@@ -6,11 +6,58 @@ import numpy as np
 
 class SVC:
     """
-    SVM linéaire (hinge + L2) vectorisée full-batch.
-    Perte: 0.5||w||^2 + C * sum max(0, 1 - y*(w·x+b))
-    Gradients:
-      dL/dw = w - C * sum_{i: margin_i<1} (y_i x_i)
-      dL/db = -C * sum_{i: margin_i<1} y_i
+    SVM linéaire (classification binaire) optimisée full-batch,
+    entraînée sur la perte hinge avec régularisation L2.
+
+    Principe
+    --------
+    On cherche l’hyperplan f(x)=w·x+b qui maximise la marge entre les classes
+    tout en pénalisant les exemples mal classés ou à l’intérieur de la marge.
+    L’objectif à minimiser est :
+        L(w, b) = ½‖w‖² + C · Σ_i max(0, 1 - y_i (w·x_i + b))
+    où y_i ∈ {-1, +1}. La première partie (½‖w‖²) élargit la marge (régularisation L2),
+    la seconde (perte hinge) pénalise les erreurs/marges violées.
+
+    Paramètres
+    ----------
+    learning_rate : float
+        Pas d’apprentissage pour la descente de gradient.
+    C : float
+        Poids de la pénalité des erreurs de marge (termes slack).
+        Plus C est grand, plus on corrige agressivement les erreurs (risque d’overfit).
+    n_iters : int
+        Nombre d’itérations (époques) de descente de gradient.
+    shuffle : bool
+        Mélange des échantillons à chaque époque (utile pour la stabilité).
+    random_state : int | None
+        Graine aléatoire pour la reproductibilité du mélange.
+    dtype : str
+        Type numérique interne ("float32" par défaut pour vitesse/mémoire).
+
+    Notes
+    -----
+    - Sous-gradient (vectorisé, full-batch) :
+        Soit m_i = y_i (w·x_i + b). Pour les points « actifs » avec m_i < 1 :
+            dL/dw = w - C · Σ_i y_i x_i
+            dL/db = - C · Σ_i y_i
+      Si tous les points satisfont m_i ≥ 1, seule la régularisation L2 agit (dL/dw = w, dL/db = 0).
+    - Le schéma full-batch (sur tout X par itération) est bien plus rapide et stable
+      que du SGD échantillon-par-échantillon en Python pur.
+
+    Avantages
+    ---------
+    - Classifieur linéaire robuste, avec contrôle fin biais/variance via C.
+    - Implémentation NumPy vectorisée : rapide, simple et déterministe.
+    - Facilement comparable à `sklearn.svm.LinearSVC` (même objectif hinge + L2).
+
+    Attributs principaux
+    --------------------
+    w : np.ndarray
+        Vecteur des poids appris.
+    b : float
+        Biais (intercept).
+    typ : str
+        'c' pour indiquer une tâche de classification.
     """
 
     typ = "c"
@@ -79,22 +126,3 @@ class SVC:
     def predict(self, X: np.ndarray) -> np.ndarray:
         s = self.decision_function(X)
         return (s >= 0.0).astype(int)
-
-    # compat scikit-like
-    def get_params(self, deep=True):
-        return {
-            "learning_rate": self.lr,
-            "C": self.C,
-            "n_iters": self.n_iters,
-            "shuffle": self.shuffle,
-            "random_state": self.random_state,
-            "dtype": self.dtype,
-        }
-
-    def set_params(self, **params):
-        for k, v in params.items():
-            if hasattr(self, k):
-                setattr(self, k, v)
-        if "learning_rate" in params:
-            self.lr = float(params["learning_rate"])
-        return self

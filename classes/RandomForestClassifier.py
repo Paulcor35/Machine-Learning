@@ -50,11 +50,75 @@ def _fit_one_tree(args: Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray,
 
 class RandomForestClassifier:
     """
-    RandomForestClassifier (optimisé NumPy + parallélisable)
-    - Base learner: DecisionTreeClassifier (maison)
-    - Bootstrap des lignes + sous-échantillonnage des features
-    - Vote majoritaire / proba = fréquence des votes
+    RandomForestClassifier (classification par forêts aléatoires),
+    implémenté en NumPy avec entraînement parallélisable.
+
+    Principe
+    --------
+    Une forêt est un ensemble d’arbres de décision indépendants.
+    Chaque arbre est entraîné sur :
+      1) un bootstrap des lignes (échantillonnage avec remise),
+      2) un sous-ensemble aléatoire de variables à chaque split (max_features).
+    La prédiction finale se fait par vote majoritaire des arbres.
+    Ce bagging + sous-échantillonnage de variables réduit fortement la variance.
+
+    Paramètres
+    ----------
+    n_estimators : int
+        Nombre d’arbres dans la forêt.
+    max_depth : int | None
+        Profondeur maximale des arbres (None = croissance jusqu’au critère d’arrêt).
+    min_samples_split : int
+        Minimum d’échantillons requis pour tenter un split.
+    min_samples_leaf : int
+        Minimum d’échantillons dans une feuille.
+    max_features : {"sqrt","log2", int, float, None}
+        Nombre de variables candidates aux splits :
+          - "sqrt"  → √p (classique en classification)
+          - "log2"  → log₂(p)
+          - int     → nombre fixe
+          - float   → proportion (0 < f ≤ 1)
+          - None    → toutes les variables
+    bootstrap : bool
+        Si True, échantillonnage avec remise des lignes pour chaque arbre.
+    random_state : int | None
+        Graine aléatoire (reproductibilité).
+    n_jobs : int
+        Nombre de processus parallèles pour l’entraînement (>1 ou -1 pour tous les cœurs).
+    dtype : str
+        Type numérique interne (par défaut "float32" pour vitesse/mémoire).
+
+    Notes
+    -----
+    - Entraînement :
+        • Pour chaque arbre t :
+            - Tirer n lignes (bootstrap) et k features (max_features).
+            - Entraîner un DecisionTreeClassifier sur (X_boot[:, feats], y_boot).
+        • Les tirages sont pré-générés pour limiter l’overhead Python.
+        • Optionnellement, l’apprentissage des arbres est parallélisé (ProcessPoolExecutor).
+
+    - Prédiction :
+        • predict : vote majoritaire des T prédictions d’arbres (gestion tie-break implicite via argmax).
+        • predict_proba : fréquence des votes par classe (moyenne des indicatrices).
+
+    Avantages
+    ---------
+    - Très robuste au sur-apprentissage grâce à l’agrégation d’arbres variés.
+    - Supporte naturellement les interactions non linéaires et les variables bruitées.
+    - Parallélisable et efficace sur des données tabulaires.
+
+    Attributs principaux
+    --------------------
+    classes_ : np.ndarray
+        Liste des classes vues à l’entraînement (ordre stable).
+    _estimators : list[tuple(tree, feat_idx)]
+        Arbres entraînés et indices de variables utilisés par chacun.
+    _class_to_idx : dict
+        Mapping classe → index (utile pour vectoriser les votes).
+    typ : str
+        'c' pour indiquer une tâche de classification.
     """
+
     typ = 'c'
 
     def __init__(self,
@@ -104,7 +168,7 @@ class RandomForestClassifier:
         k = _resolve_max_features(self.max_features, p)
         self._estimators = []
 
-        # Pré-générer tous les tirages → moins d’overhead Python
+        # Pré-générer tous les tirages
         row_indices = [self._bootstrap_indices(n) for _ in range(self.n_estimators)]
         feat_indices = [self._rng.choice(p, size=k, replace=False) for _ in range(self.n_estimators)]
 
@@ -140,7 +204,7 @@ class RandomForestClassifier:
         n = X.shape[0]
         T = len(self._estimators)
 
-        # votes en indices de classes (plus rapide que objets)
+        # votes en indices de classes
         votes = np.empty((T, n), dtype=np.int32)
         for t, (tree, feat_idx) in enumerate(self._estimators):
             pred = tree.predict(X[:, feat_idx])
@@ -174,31 +238,3 @@ class RandomForestClassifier:
 
         probs /= float(T)
         return probs
-
-    # --------- scikit-like ---------
-
-    def get_params(self, deep=True):
-        return {
-            "n_estimators": self.n_estimators,
-            "max_depth": self.max_depth,
-            "min_samples_split": self.min_samples_split,
-            "min_samples_leaf": self.min_samples_leaf,
-            "max_features": self.max_features,
-            "bootstrap": self.bootstrap,
-            "random_state": self.random_state,
-            "n_jobs": self.n_jobs,
-            "dtype": self.dtype,
-        }
-
-    def set_params(self, **params):
-        for k, v in params.items():
-            if k in ("n_estimators", "min_samples_split", "min_samples_leaf", "n_jobs") and v is not None:
-                v = int(v)
-            elif k in ("max_depth",) and v is not None:
-                v = int(v)
-            elif k in ("dtype", "max_features", "bootstrap", "random_state"):
-                # laissons tels quels (resolve/validation ailleurs)
-                pass
-            if hasattr(self, k):
-                setattr(self, k, v)
-        return self

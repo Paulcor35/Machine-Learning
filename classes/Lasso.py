@@ -6,8 +6,79 @@ import numpy as np
 
 class Lasso:
     """
-    Lasso par gradient proximal (ISTA), numpy-only.
+    Lasso (régression linéaire à pénalisation L1) 
+    implémenté en NumPy pur via l’algorithme du gradient proximal (ISTA).
+
+    Principe
+    --------
+    Le Lasso (Least Absolute Shrinkage and Selection Operator) ajoute une 
+    régularisation L1 à la régression linéaire classique afin de favoriser 
+    la parcimonie (sparsité) des poids.  
+    On résout :
+        min_w,b  (1/n) * ||y - (Xw + b)||² + λ * ||w||₁
+
+    Cette implémentation utilise l’algorithme **ISTA** (Iterative Shrinkage-Thresholding Algorithm),
+    qui alterne entre une descente de gradient sur le terme quadratique et une opération 
+    de seuillage doux (proximal L1) sur les poids.
+
+    Paramètres
+    ----------
+    learning_rate : float
+        Pas d’apprentissage du gradient (souvent noté η). 
+        Doit être suffisamment petit pour garantir la convergence.
+    max_iter : int
+        Nombre maximal d’itérations de mise à jour.
+    l1_penalty : float
+        Coefficient λ du terme de pénalisation L1.
+    tol : float
+        Tolérance d’arrêt. Si la variation du coût entre deux itérations 
+        est inférieure à ce seuil, l’entraînement s’arrête.
+    fit_intercept : bool
+        Si True, un biais (intercept) est appris et non régularisé.
+    normalize : bool
+        Si True, les colonnes de X sont centrées-réduites avant l’entraînement.
+    random_state : int | None
+        Graine du générateur aléatoire (utile si des variantes stochastiques sont ajoutées).
+    record_history : bool
+        Si True, enregistre l’évolution du coût (loss) à chaque itération dans `cost_history_`.
+    dtype : str
+        Type numérique interne utilisé (par défaut "float32" pour rapidité et légèreté mémoire).
+
+    Notes
+    -----
+    - L’algorithme ISTA se décompose ainsi :
+        1. Calcul du gradient de la perte MSE :  
+           ∇w = (2/n) * Xᵀ(Xw + b - y)
+        2. Mise à jour par descente de gradient :
+           w ← w - η * ∇w
+        3. Application du **proximal L1** (seuillage doux) :
+           w ← sign(w) * max(|w| - ηλ, 0)
+        4. Répétition jusqu’à convergence ou atteinte de `max_iter`.
+
+    - Le biais `b` est mis à jour indépendamment du terme de pénalisation L1.
+    - Les poids `w` sont mis à jour de manière entièrement vectorisée (aucune boucle Python).
+    - Si `normalize=True`, la normalisation est inversée automatiquement à la prédiction.
+
+    Attributs principaux
+    --------------------
+    coef_ : np.ndarray
+        Coefficients appris (poids du modèle).
+    intercept_ : float
+        Biais appris (non régularisé).
+    cost_history_ : list[float]
+        Historique du coût total (MSE + régularisation L1) si `record_history=True`.
+    _x_mean, _x_scale, _y_mean :
+        Statistiques internes utilisées pour la normalisation.
+    typ : str
+        'r' → indique qu’il s’agit d’un modèle de régression.
+
+    Avantages
+    ----------
+    - Sélection automatique des variables pertinentes (poids nuls possibles).
+    - Implémentation pure NumPy, simple et rapide pour des datasets moyens.
+    - Interprétable et compatible avec des pipelines standard (fit/predict).
     """
+
 
     typ = 'r'
 
@@ -143,24 +214,3 @@ class Lasso:
             raise RuntimeError("Lasso non entraîné : appelez fit(X, y) d'abord.")
         Xc = self._prep_predict(X)
         return (Xc @ self.coef_) + self.intercept_
-
-    # ---------- compat scikit-like ----------
-
-    def get_params(self, deep=True):
-        return {
-            "learning_rate": self.learning_rate,
-            "max_iter": self.max_iter,
-            "l1_penalty": self.l1_penalty,
-            "tol": self.tol,
-            "fit_intercept": self.fit_intercept,
-            "normalize": self.normalize,
-            "random_state": self.random_state,
-            "record_history": self.record_history,
-            "dtype": self.dtype,
-        }
-
-    def set_params(self, **params):
-        for k, v in params.items():
-            if hasattr(self, k):
-                setattr(self, k, v)
-        return self

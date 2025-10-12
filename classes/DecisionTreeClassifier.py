@@ -126,6 +126,64 @@ def _best_split_vectorized(
     return best_attr, best_thr, best_gain
 
 class DecisionTreeClassifier:
+    """
+    DecisionTreeClassifier (arbre de décision pour la classification) en NumPy,
+    avec recherche de split vectorisée (entropie) et garde-fous de régularisation.
+
+    Principe
+    --------
+    On construit récursivement un arbre binaire (ou multi-branches pour les
+    variables catégorielles). À chaque nœud, on choisit le split qui maximise
+    le gain d’information (réduction d’entropie). Une feuille prédit la classe
+    majoritaire des échantillons qu’elle contient.
+
+    Paramètres
+    ----------
+    max_depth : int | None
+        Profondeur maximale de l’arbre. None → croissance jusqu’aux critères d’arrêt.
+    min_samples_split : int
+        Nombre minimal d’échantillons dans un nœud pour tenter un split.
+    min_samples_leaf : int
+        Nombre minimal d’échantillons requis dans chaque feuille après le split.
+    max_thresholds : int | None
+        Pour les features numériques, limite le nombre de seuils évalués par nœud
+        (sous-échantillonnage des positions de coupure) afin d’accélérer l’entraînement.
+        None → toutes les positions valides.
+    min_gain : float
+        Gain d’entropie minimal requis pour accepter un split (sinon on crée une feuille).
+    random_state : int | None
+        Graine aléatoire (utile si vous ajoutez des éléments stochastiques).
+
+    Notes
+    -----
+    - Critère : entropie. Le meilleur split est celui qui minimise
+      l’entropie pondérée des sous-nœuds.
+    - Numérique : les seuils candidats sont les milieux entre valeurs
+      consécutives distinctes (éventuellement sous-échantillonnés via `max_thresholds`).
+    - Catégoriel : partition par valeur (une branche par modalité).
+    - Implémentation vectorisée :
+        • tri stable par feature au nœud,
+        • comptages cumulés par classe (préfixes) pour évaluer rapidement
+          toutes les coupures valides en O(n) par feature,
+        • contraintes `min_samples_leaf` et `min_gain` pour éviter des splits faibles
+          et limiter le sur-apprentissage.
+    - Arrêts : profondeur atteinte, effectif insuffisant, gain < min_gain,
+      ou pureté (toutes les étiquettes identiques).
+
+    Avantages
+    ---------
+    - Interprétable (règles if/else lisibles).
+    - Capte naturellement des interactions et non-linéarités.
+    - Version vectorisée bien plus rapide que des boucles Python naïves.
+
+    Attributs
+    ---------
+    _tree : _Node | None
+        Racine de l’arbre entraîné (structure récursive de nœuds).
+    typ : str
+        'c' pour indiquer une tâche de classification.
+    """
+
     typ = 'c'
 
     def __init__(self,
@@ -221,26 +279,3 @@ class DecisionTreeClassifier:
             raise RuntimeError("DecisionTreeClassifier non entraîné : appelez fit d'abord.")
         X = np.asarray(X)
         return np.array([self._predict_one(self._tree, X[i]) for i in range(X.shape[0])])
-
-    # ---------- compat scikit-like ----------
-    def get_params(self, deep=True):
-        return {
-            "max_depth": self.max_depth,
-            "min_samples_split": self.min_samples_split,
-            "min_samples_leaf": self.min_samples_leaf,
-            "max_thresholds": self.max_thresholds,
-            "min_gain": self.min_gain,
-            "random_state": self.random_state,
-        }
-
-    def set_params(self, **params):
-        for k, v in params.items():
-            if k in ("max_depth",) and v is not None:
-                v = int(v)
-            elif k in ("min_samples_split", "min_samples_leaf", "max_thresholds") and v is not None:
-                v = int(v)
-            elif k in ("min_gain",) and v is not None:
-                v = float(v)
-            if hasattr(self, k):
-                setattr(self, k, v)
-        return self

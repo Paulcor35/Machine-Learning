@@ -1,3 +1,4 @@
+# classes/Ridge.py
 #!/usr/bin/python3
 # -*- Mode: Python; tab-width: 4; indent-tabs-mode: t; c-basic-offset: 4 -*- #
 
@@ -5,15 +6,54 @@ import numpy as np
 
 class Ridge:
     """
-    Ridge regression (solution fermée) avec biais non régularisé.
-    API:
-      - typ = ['r']
-      - fit(X, y) -> self
-      - predict(X) -> y_pred
-      - coef_ (poids), intercept_
-      - get_params / set_params
-      - w (alias de coef_) pour compat avec tes plots
+    Régression Ridge (aussi appelée régression à crête),
+    basée sur une solution analytique fermée avec régularisation L2.
+
+    Principe
+    --------
+    Ridge ajoute un terme de pénalisation L2 aux moindres carrés pour
+    contraindre la norme des coefficients et réduire la variance du modèle.
+    On résout (en excluant le biais de la pénalisation) :
+        min_{w,b}  ||y - (Xw + b)||² + α ||w||²
+    La solution fermée s’obtient en augmentant X d’une colonne de 1 (biais)
+    puis en résolvant un système linéaire régularisé où seule la partie
+    “poids” est pénalisée.
+
+    Paramètres
+    ----------
+    alpha : float
+        Coefficient de régularisation (λ).
+        Plus alpha est grand, plus les poids sont contraints à être petits,
+        ce qui réduit le sur-apprentissage mais augmente le biais.
+
+    Notes
+    -----
+    - Fonction de coût :
+        L(w, b) = ||y - (X·w + b)||² + α * ||w||²
+      où seule la partie w (les poids) est régularisée, pas le biais b.
+    - Solution fermée :
+        β = (XᵀX + αI)⁻¹ Xᵀy
+      avec β = [b, w₁, …, w_p] et la première diagonale (b) non régularisée.
+    - Implémentation stable : on utilise `np.linalg.solve` plutôt que
+      l’inversion explicite pour de meilleures propriétés numériques.
+
+    Avantages
+    ---------
+    - Fermée et rapide : pas d’itérations (utile pour des datasets moyens/grands).
+    - Robuste à la multicolinéarité et aux matrices mal conditionnées.
+    - Réduit la variance des estimations (meilleure généralisation).
+    - Simple, interprétable et compatible avec un pipeline linéaire standard.
+
+    Attributs principaux
+    --------------------
+    coef_      : np.ndarray
+        Vecteur des coefficients (w).
+    intercept_ : float
+        Biais non régularisé.
+    w          : np.ndarray
+        Alias de coef_ (compatibilité avec d’autres modèles).
     """
+
     typ = 'r'
 
     def __init__(self, alpha: float = 1.0):
@@ -52,12 +92,3 @@ class Ridge:
     @property
     def w(self):
         return self.coef_
-
-    # utilitaires scikit-like
-    def get_params(self, deep=True):
-        return {"alpha": self.alpha}
-
-    def set_params(self, **params):
-        if "alpha" in params:
-            self.alpha = float(params["alpha"])
-        return self

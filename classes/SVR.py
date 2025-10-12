@@ -1,3 +1,4 @@
+# classes/SVR.py
 #!/usr/bin/python3
 # -*- Mode: Python; tab-width: 4; indent-tabs-mode: t; c-basic-offset: 4 -*- #
 
@@ -5,33 +6,62 @@ import numpy as np
 
 class SVR:
 	"""
-	SVR linéaire (régression ε-insensible) entraînée par SGD
-	sur la perte epsilon + L2.
+    SVR linéaire (régression ε-insensible) optimisé en NumPy, entraîné
+    par descente de gradient full-batch sur une perte hinge-ε avec régularisation L2.
 
-	Paramètres
-	----------
-	learning_rate : float
-		Pas d'apprentissage pour l'update SGD.
-	C : float
-		Poids de la pénalité (termes slack).
-	epsilon : float
-		Tube ε de la perte SVR.
-	n_iters : int
-		Nombre d'époques.
-	shuffle : bool
-		Mélange des exemples à chaque époque.
-	random_state : int
-		Graine pour la permutation.
+    Principe
+    --------
+    On cherche une fonction linéaire f(x)=w·x+b qui :
+      1) reste dans un « tube » d’insensibilité de largeur ε autour des cibles (pas de pénalité
+         tant que |y-f(x)|≤ε),
+      2) garde des poids petits via une pénalisation L2 pour améliorer la généralisation.
+    L’objectif à minimiser est :
+        L(w,b) = ½‖w‖² + C · Σ_i max(0, |y_i - (w·x_i + b)| - ε)
+    L’implémentation effectue des mises à jour full-batch : on agrège les sous-gradients
+    des seuls points en dehors du tube ε, ce qui accélère et stabilise l’optimisation.
 
-	Notes
-	-----
-	- Ici, on minimise : 1/2 ||w||^2 + C * sum_i max(0, |y - (w·x+b)| - ε)
-	- Update SGD (sous-gradient):
-		si |err| > ε: grad_w = w/n + C * sign(err) * x
-					  grad_b = C * sign(err)
-		sinon		: grad_w = w/n
-					  grad_b = 0
-	"""
+    Paramètres
+    ----------
+    learning_rate : float
+        Pas d’apprentissage des mises à jour (taux de descente).
+    C : float
+        Poids de la pénalité au-delà du tube ε (compromis biais/variance).
+        Plus C est grand, plus on pénalise fort les écarts, au risque d’overfit.
+    epsilon : float
+        Largeur du tube d’insensibilité (les erreurs < ε ne coûtent rien).
+    n_iters : int
+        Nombre d’itérations (époques) d’entraînement.
+    shuffle : bool
+        Mélanger les exemples à chaque époque (utile surtout en mini-batch/SGD).
+    random_state : int
+        Graine pseudo-aléatoire pour la reproductibilité.
+
+    Notes
+    -----
+    - Sous-gradient full-batch :
+        Soit err_i = (w·x_i + b) - y_i,  a_i = 1{|err_i| > ε}.
+        Alors
+            dL/dw = w/n + (C/n) · Σ_i a_i · sign(err_i) · x_i
+            dL/db = (C/n) · Σ_i a_i · sign(err_i)
+    - Les points « inside-tube » (|err_i| ≤ ε) n’influencent pas la mise à jour.
+    - Convergence sensible au scaling : standardiser X (et éventuellement y).
+
+    Avantages
+    ---------
+    - Robuste aux petites fluctuations des cibles grâce au tube ε.
+    - Linéaire et rapide (NumPy vectorisé), donc adapté aux jeux de données larges.
+    - Contrôle fin du compromis biais/variance via (C, ε).
+    - Implémentation simple et déterministe, facile à comparer à scikit-learn (LinearSVR).
+
+    Attributs principaux
+    --------------------
+    w : np.ndarray
+        Vecteur des poids appris.
+    b : float
+        Biais (intercept) appris.
+    typ : str
+        'r' pour indiquer une tâche de régression.
+    """
 
 	typ = "r"
 

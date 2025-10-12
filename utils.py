@@ -113,6 +113,13 @@ def apply_params(model, algo_name, typ, params, is_sci=False):
             par["max_iter"] = par.pop("n_iters")
         par.pop("random_state", None)  # ignoré par SVR
 
+	# --- AFFICHAGE DES PARAMÈTRES CHARGÉS ---
+    print(f"\nHyperparamètres appliqués à {algo_name} "
+          f"({'scikit-learn' if is_sci else 'scratch'}) [{typ}] :")
+    for k, v in par.items():
+        print(f"   {k}: {v}")
+    print("-" * 60)
+
     # --- APPLICATION ---
     try:
         if hasattr(model, "set_params"):
