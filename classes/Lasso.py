@@ -1,44 +1,12 @@
+# classes/Lasso.py (version numpy-only optimisée)
 #!/usr/bin/python3
-# -*- Mode: Python; tab-width: 4; indent-tabs-mode: t; c-basic-offset: 4 -*- #
+# -*- Mode: Python; tab-width: 4; indent-tabs-mode: t; c-basic-offset: 4 -*-
 
 import numpy as np
-import pandas as pd
-
-def _as_df(X):
-    if isinstance(X, pd.DataFrame):
-        return X.copy()
-    X = np.asarray(X, dtype=float)
-    return pd.DataFrame(X, columns=[f"f{i}" for i in range(X.shape[1])])
-
-def _as_sr(y):
-    if isinstance(y, pd.Series):
-        return y.copy()
-    y = np.asarray(y, dtype=float).reshape(-1)
-    return pd.Series(y, name="target")
-
-def _soft_threshold(u, lam):
-    # Prox L1 : S(u, λ) = sign(u) * max(|u| - λ, 0)
-    if u > lam:  return u - lam
-    if u < -lam: return u + lam
-    return 0.0
 
 class Lasso:
     """
-    Régression Lasso (L1) par gradient + étape proximale (soft-thresholding).
-
-    - typ = ['r'] : pipeline régression
-    - API : fit(X, y) -> self ; predict(X) ; get_params / set_params
-    - Gère DataFrame/ndarray ; normalisation interne optionnelle.
-
-    Paramètres
-    ----------
-    learning_rate : float          (pas de 'alpha' ici ; utiliser l1_penalty)
-    max_iter      : int
-    l1_penalty    : float          (λ)
-    tol           : float          (tolérance d'arrêt sur la baisse du coût)
-    fit_intercept : bool
-    normalize     : bool           (centre X, et met à l'échelle par std si True)
-    random_state  : int|None       (non utilisé ici, placeholder)
+    Lasso par gradient proximal (ISTA), numpy-only.
     """
 
     typ = 'r'
@@ -50,7 +18,9 @@ class Lasso:
                  tol: float = 1e-6,
                  fit_intercept: bool = True,
                  normalize: bool = True,
-                 random_state: int | None = None):
+                 random_state: int | None = None,
+                 record_history: bool = False,
+                 dtype: str = "float32"):
         self.learning_rate = float(learning_rate)
         self.max_iter = int(max_iter)
         self.l1_penalty = float(l1_penalty)
@@ -58,117 +28,123 @@ class Lasso:
         self.fit_intercept = bool(fit_intercept)
         self.normalize = bool(normalize)
         self.random_state = random_state
+        self.record_history = bool(record_history)
+        self.dtype = dtype
 
-        # Attributs appris
         self.coef_: np.ndarray | None = None
         self.intercept_: float = 0.0
         self.cost_history_: list[float] = []
 
-        # Stats de prétraitement
-        self._x_mean = None
-        self._x_scale = None
-        self._y_mean = 0.0
-        self._feature_names = None
+        # stats de normalisation
+        self._x_mean: np.ndarray | None = None
+        self._x_scale: np.ndarray | None = None
+        self._y_mean: float = 0.0
 
-    # -------------------- Prétraitements --------------------
+    # ---------- utils ----------
+
+    @staticmethod
+    def _soft_threshold_vec(w: np.ndarray, lam: float) -> np.ndarray:
+        # proximal L1 vectoriel: sign(w) * max(|w| - lam, 0)
+        absw = np.abs(w)
+        return np.sign(w) * np.maximum(absw - lam, 0.0, dtype=w.dtype)
 
     def _prep_fit(self, X, y):
-        X = _as_df(X).reset_index(drop=True)
-        y = _as_sr(y).reset_index(drop=True)
+        X = np.asarray(X, dtype=self.dtype, order="C")
+        y = np.asarray(y, dtype=self.dtype).reshape(-1)
 
-        self._feature_names = list(X.columns)
+        if self.fit_intercept or self.normalize:
+            self._x_mean = X.mean(axis=0)
+        else:
+            self._x_mean = np.zeros(X.shape[1], dtype=X.dtype)
 
-        # Centrage X si intercept ou normalize
-        self._x_mean = X.mean(axis=0) if (self.fit_intercept or self.normalize) else pd.Series(0.0, index=X.columns)
         Xc = X - self._x_mean
 
-        # Mise à l'échelle si normalize
         if self.normalize:
-            self._x_scale = Xc.std(axis=0).replace(0.0, 1.0)
+            self._x_scale = Xc.std(axis=0, dtype=self.dtype)
+            self._x_scale[self._x_scale == 0] = 1.0
             Xc = Xc / self._x_scale
         else:
-            self._x_scale = pd.Series(1.0, index=X.columns)
+            self._x_scale = np.ones(X.shape[1], dtype=X.dtype)
 
-        # Centrage de y si intercept
         if self.fit_intercept:
-            self._y_mean = float(y.mean())
+            self._y_mean = float(y.mean(dtype=self.dtype))
             yc = y - self._y_mean
         else:
             self._y_mean = 0.0
             yc = y
 
-        return Xc.to_numpy(dtype=float), yc.to_numpy(dtype=float)
+        return Xc, yc
 
     def _prep_predict(self, X):
-        X = _as_df(X)
-        # Alignement des colonnes
-        for c in self._feature_names:
-            if c not in X.columns:
-                X[c] = np.nan
-        X = X[self._feature_names]
-
-        Xc = X - self._x_mean
+        X = np.asarray(X, dtype=self.dtype, order="C")
+        Xc = (X - self._x_mean)
         if self.normalize:
             Xc = Xc / self._x_scale
-        return Xc.to_numpy(dtype=float)
+        return Xc
 
-    # -------------------- Entraînement (GD + prox L1) --------------------
+    # ---------- entraînement ----------
 
     def fit(self, X, y):
-        Xc, yc = self._prep_fit(X, y)  # (n, p), (n,)
+        Xc, yc = self._prep_fit(X, y)  # (n, p)
         n, p = Xc.shape
 
-        w = np.zeros(p, dtype=float)
-        b = 0.0
+        w = np.zeros(p, dtype=self.dtype)
+        b = np.array(0.0, dtype=self.dtype)
         self.cost_history_.clear()
 
-        prev_cost = float('inf')
         lr = self.learning_rate
         lam = self.l1_penalty
+        prev_cost = np.inf
 
+        # on calcule r = Xc @ w + b - yc pour réutiliser
+        r = -yc.copy()
+        # boucle ISTA
         for _ in range(self.max_iter):
-            # Prédiction et résidus
-            y_pred = Xc @ w + b
-            r = yc - y_pred
+            # y_pred = Xc @ w + b  => r = y_pred - yc, mais on met à jour r plus vite:
+            # grad_w = (2/n) Xc^T r ; grad_b = (2/n) sum(r)
+            grad_w = (2.0 / n) * (Xc.T @ r)
+            grad_b = (2.0 / n) * np.sum(r, dtype=self.dtype)
 
-            # Gradients MSE (facteur 2/n)
-            grad_w = -(2.0 / n) * (Xc.T @ r)
-            grad_b = -(2.0 / n) * np.sum(r)
+            # tentative de descente
+            w_new = w - lr * grad_w
+            b_new = b - lr * grad_b
 
-            # Pas de gradient
-            w = w - lr * grad_w
-            b = b - lr * grad_b
-
-            # Prox L1 sur w (b n'est pas régularisé)
-            # w := S(w, lr * lam)
+            # prox L1 (sur w seulement)
             if lam != 0.0:
-                w = np.vectorize(_soft_threshold)(w, lr * lam)
+                w_new = self._soft_threshold_vec(w_new, lr * lam)
 
-            # Coût = MSE + λ ||w||_1
-            mse = float(np.mean((r) ** 2))
-            cost = mse + lam * float(np.sum(np.abs(w)))
-            self.cost_history_.append(cost)
+            # mettre à jour r efficacement:
+            # r_new = (Xc @ w_new + b_new) - yc
+            #       = r + Xc@(w_new - w) + (b_new - b)
+            dw = w_new - w
+            db = b_new - b
+            r = r + Xc @ dw + db
 
-            # Critère d'arrêt
-            if abs(prev_cost - cost) < self.tol:
+            w, b = w_new, b_new
+
+            if self.record_history or self.tol > 0:
+                mse = float(np.mean(r * r))
+                cost = mse + lam * float(np.sum(np.abs(w)))
+                if self.record_history:
+                    self.cost_history_.append(cost)
+                if abs(prev_cost - cost) < self.tol:
+                    prev_cost = cost
+                    break
                 prev_cost = cost
-                break
-            prev_cost = cost
 
-        self.coef_ = w
-        # Intercept en espace original : y = (Xc @ w + b) + y_mean
-        self.intercept_ = (b + self._y_mean) if self.fit_intercept else b
+        self.coef_ = w.astype(np.float64, copy=False)
+        self.intercept_ = float(b + self._y_mean) if self.fit_intercept else float(b)
         return self
 
-    # -------------------- Prédiction --------------------
+    # ---------- prédiction ----------
 
     def predict(self, X):
         if self.coef_ is None:
             raise RuntimeError("Lasso non entraîné : appelez fit(X, y) d'abord.")
         Xc = self._prep_predict(X)
-        return Xc @ self.coef_ + self.intercept_
+        return (Xc @ self.coef_) + self.intercept_
 
-    # -------------------- Compat scikit-like --------------------
+    # ---------- compat scikit-like ----------
 
     def get_params(self, deep=True):
         return {
@@ -179,6 +155,8 @@ class Lasso:
             "fit_intercept": self.fit_intercept,
             "normalize": self.normalize,
             "random_state": self.random_state,
+            "record_history": self.record_history,
+            "dtype": self.dtype,
         }
 
     def set_params(self, **params):

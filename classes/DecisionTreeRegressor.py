@@ -1,172 +1,178 @@
+# classes/DecisionTreeRegressor.py
 #!/usr/bin/python3
-# -*- Mode: Python; tab-width: 4; indent-tabs-mode: t; c-basic-offset: 4 -*- #
+# -*- Mode: Python; tab-width: 4; indent-tabs-mode: t; c-basic-offset: 4 -*-
 
 import numpy as np
-import pandas as pd
 from dataclasses import dataclass
-import time
+from typing import Optional
 
 @dataclass
 class _Node:
-    """
-    Classe générique pour représenter un noeud de l'arbre.
-    """
     is_leaf: bool
-    value: float = None           # pour feuille
-    attr: int = None              # index de feature
-    threshold: float = None       # seuil pour split
-    left: object = None           # sous-arbre gauche
-    right: object = None          # sous-arbre droit
+    value: float | None = None
+    attr: int | None = None
+    threshold: float | None = None
+    left: Optional["_Node"] = None
+    right: Optional["_Node"] = None
 
-# ------------------------- Fonctions utilitaires -------------------------
+def _variance(y: np.ndarray) -> float:
+    m = y.mean()
+    return float((y * y).mean() - m * m)
 
-def variance(y):
-    return np.var(y)
+def _best_split_vectorized(X: np.ndarray,
+                           y: np.ndarray,
+                           min_samples_leaf: int = 1,
+                           max_splits_per_feature: int | None = None,
+                           min_gain: float = 1e-6) -> tuple[int, float]:
+    """
+    Trouve le meilleur split sur TOUTES les features en un minimum de Python.
+    - Tri par feature (au nœud).
+    - Un scan vectorisé pour tous les splits valides.
+    - Option: sous-échantillonne les positions si très nombreuses (max_splits_per_feature).
+    Retourne (best_attr, best_threshold) ou (-1, 0.0) si pas de gain.
+    """
+    n, p = X.shape
+    base_var = _variance(y)
+    best_gain = -1.0
+    best_attr = -1
+    best_thr = 0.0
+    min_gain = float(min_gain)
 
-def mean_val(y):
-    return np.mean(y)
+    for j in range(p):
+        xj = X[:, j]
+        order = np.argsort(xj, kind="mergesort")
+        xs = xj[order]
+        ys = y[order]
 
-def best_split(X, y, threshold_sample=50, min_gain=1e-6):
-    n_samples, n_features = X.shape
-    base_var = variance(y)
-    best_gain, best_attr, best_threshold = -1.0, -1, 0.0
+        # positions où la valeur change → seuls splits entre valeurs distinctes
+        diff = np.diff(xs)
+        valid_pos = np.nonzero(diff != 0)[0]  # positions i = 0..n-2, split entre i et i+1
 
-    for j in range(n_features):
-        X_j = X[:, j]
-        sort_idx = np.argsort(X_j)
-        X_j_sorted = X_j[sort_idx]
-        y_sorted = y[sort_idx]
+        if valid_pos.size == 0:
+            continue
 
-        unique_vals = np.unique(X_j_sorted)
-        if len(unique_vals) > threshold_sample:
-            thresholds = np.quantile(unique_vals, np.linspace(0, 1, threshold_sample))
-        else:
-            thresholds = unique_vals
+        # min_samples_leaf : on restreint les positions valides
+        mask_leaf = (valid_pos + 1 >= min_samples_leaf) & (valid_pos + 1 <= n - min_samples_leaf)
+        valid_pos = valid_pos[mask_leaf]
+        if valid_pos.size == 0:
+            continue
 
-        sum_y = np.cumsum(y_sorted)
-        sum_y2 = np.cumsum(y_sorted ** 2)
-        total_y = sum_y[-1]
-        total_y2 = sum_y2[-1]
+        # si trop de positions, on en échantillonne
+        if max_splits_per_feature is not None and valid_pos.size > max_splits_per_feature:
+            step = int(np.ceil(valid_pos.size / max_splits_per_feature))
+            valid_pos = valid_pos[::step]
 
-        for t in thresholds:
-            left_n = np.searchsorted(X_j_sorted, t, side='right')
-            right_n = n_samples - left_n
-            if left_n == 0 or right_n == 0:
-                continue
+        # préfixes pour calculer var gauche/droite rapidement
+        csum = np.cumsum(ys, dtype=np.float64)
+        csum2 = np.cumsum(ys * ys, dtype=np.float64)
 
-            sum_left_y = sum_y[left_n - 1]
-            sum_left_y2 = sum_y2[left_n - 1]
-            left_mean = sum_left_y / left_n
-            left_var = sum_left_y2 / left_n - left_mean ** 2
+        left_n = valid_pos + 1
+        right_n = n - left_n
 
-            sum_right_y = total_y - sum_left_y
-            sum_right_y2 = total_y2 - sum_left_y2
-            right_mean = sum_right_y / right_n
-            right_var = sum_right_y2 / right_n - right_mean ** 2
+        left_sum = csum[valid_pos]
+        left_sum2 = csum2[valid_pos]
+        left_mean = left_sum / left_n
+        left_var = left_sum2 / left_n - left_mean * left_mean
 
-            new_var = (left_n / n_samples) * left_var + (right_n / n_samples) * right_var
-            gain = base_var - new_var
+        right_sum = csum[-1] - left_sum
+        right_sum2 = csum2[-1] - left_sum2
+        right_mean = right_sum / right_n
+        right_var = right_sum2 / right_n - right_mean * right_mean
 
-            if gain > best_gain:
-                best_gain = gain
-                best_attr = j
-                best_threshold = t
+        new_var = (left_n / n) * left_var + (right_n / n) * right_var
+        gains = base_var - new_var
 
-    if best_gain < min_gain:
+        k = int(np.argmax(gains))
+        gain = float(gains[k])
+        if gain > best_gain and gain > min_gain:
+            best_gain = gain
+            best_attr = j
+            # seuil = milieu entre xs[i] et xs[i+1]
+            i = int(valid_pos[k])
+            best_thr = float((xs[i] + xs[i + 1]) * 0.5)
+
+    if best_attr < 0:
         return -1, 0.0
-    return best_attr, best_threshold
+    return best_attr, best_thr
 
-# ------------------------- Arbre de régression -------------------------
 
 class DecisionTreeRegressor:
-    """
-    Arbre de régression simplifié "from scratch" avec splits numériques uniquement.
-    """
-
     typ = "r"
 
-    def __init__(self, max_depth=5, min_samples_split=5):
+    def __init__(self,
+                 max_depth: int | None = 5,
+                 min_samples_split: int = 5,
+                 min_samples_leaf: int = 1,
+                 max_splits_per_feature: int | None = 256,
+                 min_gain: float = 1e-6):
         self.max_depth = max_depth
-        self.min_samples_split = min_samples_split
-        self.tree = None
+        self.min_samples_split = int(min_samples_split)
+        self.min_samples_leaf = int(min_samples_leaf)
+        self.max_splits_per_feature = (None if max_splits_per_feature is None
+                                       else int(max_splits_per_feature))
+        self.min_gain = float(min_gain)
+        self.tree: _Node | None = None
 
-    def _build_tree(self, X, y, idx, depth=0, parent_mean=None):
-        if len(idx) == 0:
-            return _Node(is_leaf=True, value=parent_mean if parent_mean is not None else 0.0)
-
+    def _build(self, X: np.ndarray, y: np.ndarray, idx: np.ndarray, depth: int) -> _Node:
         y_sub = y[idx]
-        n_samples = len(y_sub)
+        n = y_sub.size
 
-        if len(np.unique(y_sub)) == 1 or (self.max_depth is not None and depth >= self.max_depth) or n_samples < self.min_samples_split:
-            return _Node(is_leaf=True, value=mean_val(y_sub))
+        if n == 0:
+            return _Node(is_leaf=True, value=0.0)
+        if (self.max_depth is not None and depth >= self.max_depth) or n < self.min_samples_split:
+            return _Node(is_leaf=True, value=float(y_sub.mean()))
+        if np.all(y_sub == y_sub[0]):
+            return _Node(is_leaf=True, value=float(y_sub[0]))
 
-        attr, threshold = best_split(X[idx], y_sub)
+        X_sub = X[idx]
+        attr, thr = _best_split_vectorized(
+            X_sub, y_sub,
+            min_samples_leaf=self.min_samples_leaf,
+            max_splits_per_feature=self.max_splits_per_feature,
+            min_gain=self.min_gain
+        )
         if attr == -1:
-            return _Node(is_leaf=True, value=mean_val(y_sub))
+            return _Node(is_leaf=True, value=float(y_sub.mean()))
 
-        left_idx = idx[X[idx, attr] <= threshold]
-        right_idx = idx[X[idx, attr] > threshold]
+        left_mask = X_sub[:, attr] <= thr
+        left_idx = idx[left_mask]
+        right_idx = idx[~left_mask]
 
-        left_node = self._build_tree(X, y, left_idx, depth + 1, mean_val(y_sub))
-        right_node = self._build_tree(X, y, right_idx, depth + 1, mean_val(y_sub))
+        # sécurités min_samples_leaf
+        if left_idx.size < self.min_samples_leaf or right_idx.size < self.min_samples_leaf:
+            return _Node(is_leaf=True, value=float(y_sub.mean()))
 
-        return _Node(is_leaf=False, attr=attr, threshold=threshold, left=left_node, right=right_node)
+        left = self._build(X, y, left_idx, depth + 1)
+        right = self._build(X, y, right_idx, depth + 1)
+        return _Node(is_leaf=False, attr=attr, threshold=thr, left=left, right=right)
 
     def fit(self, X, y):
-        X = np.asarray(X)
-        y = np.asarray(y).reshape(-1)
-        idx = np.arange(len(y))
-        self.tree = self._build_tree(X, y, idx)
+        X = np.asarray(X, dtype=np.float32, order="C")
+        y = np.asarray(y, dtype=np.float32).reshape(-1)
+        idx = np.arange(y.size, dtype=np.int32)
+        self.tree = self._build(X, y, idx, depth=0)
         return self
 
-    def _predict_one(self, x, node):
+    def _predict_one(self, x: np.ndarray, node: _Node) -> float:
         while not node.is_leaf:
-            if x[node.attr] <= node.threshold:
-                node = node.left
-            else:
-                node = node.right
+            node = node.left if x[node.attr] <= node.threshold else node.right
         return node.value
 
     def predict(self, X):
-        X = np.asarray(X)
-        return np.array([self._predict_one(X[i], self.tree) for i in range(X.shape[0])])
+        if self.tree is None:
+            raise RuntimeError("DecisionTreeRegressor non entraîné.")
+        X = np.asarray(X, dtype=np.float32, order="C")
+        return np.array([self._predict_one(X[i], self.tree) for i in range(X.shape[0])],
+                        dtype=np.float32)
 
-# ------------------------- Exemple d'utilisation -------------------------
-
-if __name__ == "__main__":
-    # Exemple synthétique
-    from sklearn.datasets import make_regression
-    X, y = make_regression(n_samples=200, n_features=5, noise=10.0, random_state=42)
-    X_train, X_test = X[:160], X[160:]
-    y_train, y_test = y[:160], y[160:]
-
-    print("Entraînement de l'arbre from scratch...")
-    start_train = time.time()
-    dtr = DecisionTreeRegressor(max_depth=5, min_samples_split=5)
-    dtr.fit(X_train, y_train)
-    end_train = time.time()
-    print(f"Temps d'apprentissage : {end_train - start_train:.4f} s")
-
-    print("Prédiction...")
-    start_pred = time.time()
-    y_pred = dtr.predict(X_test)
-    end_pred = time.time()
-    print(f"Temps de prédiction : {end_pred - start_pred:.4f} s")
-
-    mse = np.mean((y_test - y_pred) ** 2)
-    r2 = 1 - np.sum((y_test - y_pred) ** 2) / np.sum((y_test - np.mean(y_test)) ** 2)
-    print(f"MSE: {mse:.4f}")
-    print(f"R²: {r2:.4f}")
-
-
-    # ---------------- Compat scikit-like ----------------
-
+    # compat scikit-like
     def get_params(self, deep=True):
         return {
             "max_depth": self.max_depth,
             "min_samples_split": self.min_samples_split,
             "min_samples_leaf": self.min_samples_leaf,
-            "random_state": self.random_state,
+            "max_splits_per_feature": self.max_splits_per_feature,
+            "min_gain": self.min_gain,
         }
 
     def set_params(self, **params):

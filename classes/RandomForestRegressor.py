@@ -1,51 +1,55 @@
+# classes/RandomForestRegressor.py
 #!/usr/bin/python3
-# -*- Mode: Python; tab-width: 4; indent-tabs-mode: t; c-basic-offset: 4 -*- #
+# -*- Mode: Python; tab-width: 4; indent-tabs-mode: t; c-basic-offset: 4 -*-
 
 import numpy as np
-import pandas as pd
-from typing import List, Tuple, Optional, Union
+from typing import Optional, Union, Tuple, List
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
-# Arbre de base (implémentation maison)
+# Arbre base (ta version numpy)
 from classes.DecisionTreeRegressor import DecisionTreeRegressor as BaseTree
 
-def _to_df(X):
-    if isinstance(X, pd.DataFrame):
-        return X.copy()
-    X = np.asarray(X)
-    return pd.DataFrame(X, columns=[f"f{i}" for i in range(X.shape[1])])
 
-def _to_sr(y):
-    if isinstance(y, pd.Series):
-        return y.copy()
-    y = np.asarray(y).reshape(-1)
-    return pd.Series(y, name="target")
+def _resolve_max_features(max_features: Union[str, int, float, None], p: int) -> int:
+    if max_features is None:
+        k = p
+    elif isinstance(max_features, str):
+        if max_features == "sqrt":
+            k = int(np.sqrt(p))
+        elif max_features == "log2":
+            k = int(np.log2(p)) if p > 1 else 1
+        else:
+            raise ValueError(f"max_features unsupported: {max_features}")
+    elif isinstance(max_features, (int, np.integer)):
+        k = int(max_features)
+    elif isinstance(max_features, float):
+        if not (0 < max_features <= 1):
+            raise ValueError("max_features float must be in (0,1].")
+        k = int(np.ceil(max_features * p))
+    else:
+        raise ValueError(f"max_features type unsupported: {type(max_features)}")
+    return max(1, min(k, p))
+
+
+def _fit_one_tree(args: Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray,
+                              Optional[int], int]) -> Tuple[BaseTree, np.ndarray]:
+    """Fonction exécutée en sous-processus quand n_jobs != 1."""
+    X, y, row_idx, feat_idx, max_depth, min_samples_split = args
+    # vues NumPy, pas de pandas
+    X_boot_sub = X[row_idx][:, feat_idx]
+    y_boot = y[row_idx]
+    tree = BaseTree(max_depth=max_depth, min_samples_split=min_samples_split)
+    tree.fit(X_boot_sub, y_boot)
+    return tree, feat_idx
+
 
 class RandomForestRegressor:
     """
-    RandomForestRegressor (from scratch)
+    RandomForestRegressor (optimisé NumPy + parallélisable)
     - Base learner: DecisionTreeRegressor (maison)
-    - Bootstrap des échantillons + sous-échantillonnage des features
-    - Prédiction = moyenne des prédictions des arbres
-
-    Hyperparamètres
-    ---------------
-    n_estimators : int
-    max_depth : int | None
-    min_samples_split : int
-    max_features : {"sqrt","log2",None} | int | float
-        "sqrt" -> sqrt(p), "log2" -> log2(p), None -> p,
-        int -> nombre de features, float in (0,1] -> ratio * p
-    bootstrap : bool
-    random_state : int | None
-
-    API
-    ---
-    typ = ['r']
-    fit(X, y) -> self
-    predict(X) -> np.ndarray shape (n_samples,)
-    get_params / set_params
+    - Bootstrap des lignes + sous-échantillonnage des features
+    - Prédiction = moyenne des arbres
     """
-
     typ = 'r'
 
     def __init__(self,
@@ -54,41 +58,23 @@ class RandomForestRegressor:
                  min_samples_split: int = 2,
                  max_features: Union[str, int, float, None] = "sqrt",
                  bootstrap: bool = True,
-                 random_state: Optional[int] = None):
+                 random_state: Optional[int] = None,
+                 n_jobs: int = 1,
+                 dtype: str = "float32"):   # float32: plus compact et souvent plus rapide
         self.n_estimators = int(n_estimators)
         self.max_depth = max_depth
         self.min_samples_split = int(min_samples_split)
         self.max_features = max_features
         self.bootstrap = bool(bootstrap)
-        self.random_state = random_state
+        self.random_state = None if random_state is None else int(random_state)
+        self.n_jobs = int(n_jobs)
+        self.dtype = dtype
 
-        # appris
-        self._estimators: List[Tuple[BaseTree, List[str]]] = []
-        self._feature_names: List[str] = []
-        self._rng = np.random.default_rng(random_state)
+        self._estimators: List[Tuple[BaseTree, np.ndarray]] = []
+        self._rng = np.random.default_rng(self.random_state)
+        self._p = None  # nb de features apprises
 
     # -------------------- helpers --------------------
-
-    def _resolve_max_features(self, p: int) -> int:
-        mf = self.max_features
-        if mf is None:
-            k = p
-        elif isinstance(mf, str):
-            if mf == "sqrt":
-                k = int(np.sqrt(p))
-            elif mf == "log2":
-                k = int(np.log2(p)) if p > 1 else 1
-            else:
-                raise ValueError(f"max_features string unsupported: {mf}")
-        elif isinstance(mf, (int, np.integer)):
-            k = int(mf)
-        elif isinstance(mf, float):
-            if not (0 < mf <= 1):
-                raise ValueError("max_features float doit être dans (0,1].")
-            k = int(np.ceil(mf * p))
-        else:
-            raise ValueError(f"max_features type unsupported: {type(mf)}")
-        return max(1, min(k, p))
 
     def _bootstrap_indices(self, n: int) -> np.ndarray:
         if self.bootstrap:
@@ -96,60 +82,56 @@ class RandomForestRegressor:
         else:
             return self._rng.permutation(n)
 
-    def _ensure_columns(self, X_df: pd.DataFrame, feat_names: List[str]) -> pd.DataFrame:
-        for c in feat_names:
-            if c not in X_df.columns:
-                X_df[c] = np.nan
-        return X_df[feat_names]
-
     # -------------------- API --------------------
 
     def fit(self, X, y):
-        X_df = _to_df(X).reset_index(drop=True)
-        y_sr = _to_sr(y).reset_index(drop=True)
+        X = np.asarray(X, dtype=self.dtype, order="C")
+        y = np.asarray(y, dtype=self.dtype).reshape(-1)
+        n, p = X.shape
+        self._p = p
+        k = _resolve_max_features(self.max_features, p)
 
-        self._feature_names = list(X_df.columns)
-        n, p = X_df.shape
-        k = self._resolve_max_features(p)
+        # Pré-génère tous les tirages pour limiter le coût d’orchestration
+        row_indices = [self._bootstrap_indices(n) for _ in range(self.n_estimators)]
+        feat_indices = [self._rng.choice(p, size=k, replace=False) for _ in range(self.n_estimators)]
 
         self._estimators = []
 
-        for _ in range(self.n_estimators):
-            # 1) bootstrap lignes
-            idx = self._bootstrap_indices(n)
-            X_boot = X_df.iloc[idx]
-            y_boot = y_sr.iloc[idx]
-
-            # 2) sous-ensemble de features
-            feat_idx = self._rng.choice(p, size=k, replace=False)
-            feat_names = [self._feature_names[j] for j in feat_idx]
-            X_sub = X_boot[feat_names]
-
-            # 3) fit arbre base
-            tree = BaseTree(
-                max_depth=self.max_depth,
-                min_samples_split=self.min_samples_split,
-            ).fit(X_sub, y_boot)
-
-            self._estimators.append((tree, feat_names))
+        if self.n_jobs == 1:
+            # Entraînement séquentiel rapide (NumPy only)
+            for r_idx, f_idx in zip(row_indices, feat_indices):
+                X_boot_sub = X[r_idx][:, f_idx]
+                y_boot = y[r_idx]
+                tree = BaseTree(max_depth=self.max_depth,
+                                min_samples_split=self.min_samples_split).fit(X_boot_sub, y_boot)
+                self._estimators.append((tree, f_idx.astype(int)))
+        else:
+            # Parallélisation par sous-processus (CPU-bound)
+            tasks = []
+            with ProcessPoolExecutor(max_workers=None if self.n_jobs < 0 else self.n_jobs) as ex:
+                for r_idx, f_idx in zip(row_indices, feat_indices):
+                    tasks.append(ex.submit(
+                        _fit_one_tree,
+                        (X, y, r_idx, f_idx, self.max_depth, self.min_samples_split)
+                    ))
+                for fut in as_completed(tasks):
+                    tree, f_idx = fut.result()
+                    self._estimators.append((tree, f_idx.astype(int)))
 
         return self
 
     def predict(self, X):
         if not self._estimators:
             raise RuntimeError("Modèle non entraîné : appelez fit(X, y) d'abord.")
-        X_df = _to_df(X)
-        preds_accum = None
+        X = np.asarray(X, dtype=self.dtype, order="C")
+        n = X.shape[0]
+        out = np.zeros(n, dtype=np.float64)  # accumulate en float64 pour la stabilité
 
-        for tree, feats in self._estimators:
-            X_use = self._ensure_columns(X_df.copy(), feats)
-            pred = tree.predict(X_use).astype(float)
-            if preds_accum is None:
-                preds_accum = pred
-            else:
-                preds_accum += pred
+        for tree, feat_idx in self._estimators:
+            out += tree.predict(X[:, feat_idx]).astype(np.float64)
 
-        return preds_accum / float(len(self._estimators))
+        out /= float(len(self._estimators))
+        return out.astype(self.dtype, copy=False)
 
     # -------------------- compat scikit-like --------------------
 
@@ -161,6 +143,8 @@ class RandomForestRegressor:
             "max_features": self.max_features,
             "bootstrap": self.bootstrap,
             "random_state": self.random_state,
+            "n_jobs": self.n_jobs,
+            "dtype": self.dtype,
         }
 
     def set_params(self, **params):
