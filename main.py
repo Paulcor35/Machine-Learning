@@ -36,6 +36,8 @@ def main():
 			e.add_note(f"{args.algorithm} doesn't support {utils.type_map[args.type]}")
 	params = utils.read_params()
 
+	utils.apply_params(model, args.algorithm, args.type, params, is_sci=False)
+
 	# Read and prepare data
 	df = utils.read_file_wtype(args.file, args.type)
 
@@ -52,6 +54,7 @@ def main():
 	X_test  = (X_test  - mu)/sigma
 
 	model_sci = utils.algos_sci_map[args.algorithm][args.type]()
+	utils.apply_params(model_sci, args.algorithm, args.type, params, is_sci=True)
 
 	if ModelClass.typ == "c":
 		res = bench.benchmark_classification(model, X_train, y_train, X_test, y_test)

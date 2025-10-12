@@ -89,10 +89,44 @@ def read_params():
 	return params
 
 def apply_params(model, algo_name, typ, params, is_sci=False):
-	par = params[algo_name]["scikit" if is_sci else "scratch"][typ]
-	if par != {}:
-		for k, v in par.items():
-			setattr(model, k, v)
+    """
+    Applique les hyper-paramètres lus dans params.yaml au modèle.
+    - Pour scikit: utilise model.set_params(**par) + petite traduction de clés si besoin.
+    - Pour scratch: setattr (ou set_params si dispo).
+    """
+    # Sécuriser la lecture du dict
+    par = (
+        params.get(algo_name, {})
+              .get("scikit" if is_sci else "scratch", {})
+              .get(typ, {})
+        or {}
+    )
+    if not par:
+        return
+
+    # --- PETIT MAPPING POUR SCIKIT SI BESOIN ---
+    par = par.copy()
+
+    # SVM (régression) scikit = sklearn.svm.SVR
+    if is_sci and algo_name == "SVM" and typ == "r":
+        if "n_iters" in par:
+            par["max_iter"] = par.pop("n_iters")
+        par.pop("random_state", None)  # ignoré par SVR
+
+    # --- APPLICATION ---
+    try:
+        if hasattr(model, "set_params"):
+            model.set_params(**par)  # scikit (et certains scratch compatibles)
+        else:
+            for k, v in par.items():
+                setattr(model, k, v)  # scratch
+    except Exception as e:
+        # Fallback: au moins on pousse ce qu'on peut sur scratch
+        for k, v in par.items():
+            try:
+                setattr(model, k, v)
+            except:
+                pass
 
 def get_class(class_name: str, typ: str):
 	"""
