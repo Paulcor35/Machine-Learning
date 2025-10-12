@@ -36,7 +36,7 @@ class SVR:
 
 	def __init__(self, learning_rate: float = 1e-3, C: float = 1.0,
 				 epsilon: float = 0.1, n_iters: int = 100,
-				 shuffle: bool = True, random_state: int = 0):
+				 shuffle: bool = False, random_state: int = 0):
 		self.lr = float(learning_rate)
 		self.C = float(C)
 		self.epsilon = float(epsilon)

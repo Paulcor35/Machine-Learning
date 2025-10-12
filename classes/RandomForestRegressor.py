@@ -32,7 +32,6 @@ class RandomForestRegressor:
     n_estimators : int
     max_depth : int | None
     min_samples_split : int
-    min_samples_leaf : int
     max_features : {"sqrt","log2",None} | int | float
         "sqrt" -> sqrt(p), "log2" -> log2(p), None -> p,
         int -> nombre de features, float in (0,1] -> ratio * p
@@ -53,14 +52,12 @@ class RandomForestRegressor:
                  n_estimators: int = 100,
                  max_depth: Optional[int] = None,
                  min_samples_split: int = 2,
-                 min_samples_leaf: int = 1,
                  max_features: Union[str, int, float, None] = "sqrt",
                  bootstrap: bool = True,
                  random_state: Optional[int] = None):
         self.n_estimators = int(n_estimators)
         self.max_depth = max_depth
         self.min_samples_split = int(min_samples_split)
-        self.min_samples_leaf = int(min_samples_leaf)
         self.max_features = max_features
         self.bootstrap = bool(bootstrap)
         self.random_state = random_state
@@ -132,8 +129,6 @@ class RandomForestRegressor:
             tree = BaseTree(
                 max_depth=self.max_depth,
                 min_samples_split=self.min_samples_split,
-                min_samples_leaf=self.min_samples_leaf,
-                random_state=self.random_state
             ).fit(X_sub, y_boot)
 
             self._estimators.append((tree, feat_names))
@@ -163,7 +158,6 @@ class RandomForestRegressor:
             "n_estimators": self.n_estimators,
             "max_depth": self.max_depth,
             "min_samples_split": self.min_samples_split,
-            "min_samples_leaf": self.min_samples_leaf,
             "max_features": self.max_features,
             "bootstrap": self.bootstrap,
             "random_state": self.random_state,
