@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 # -*- Mode: Python; tab-width: 4; indent-tabs-mode: t; c-basic-offset: 4 -*- #
 import argparse
-import pandas as pd
 import numpy as np
 import utils
 import bench
@@ -12,7 +11,7 @@ parser.add_argument("-f", "--file", help="input file", required=True)
 parser.add_argument("-t", "--type", help="algorithm type", choices=["r", "regression", "c", "classification"], default="r")
 parser.add_argument("-F", "--to-find", help="dependant var to find", required=True)
 parser.add_argument("-a", "--algorithm", help="algorithm to train and use", choices=["DecisionTree", "RandomForest", "Ridge", "Lasso", "SVM"], required=True)
-parser.add_argument("-s", "--show", help="chosse what to show (plot & stdout output)", choices=["all", "none", "hyperparams", "report", "importance", "roc", "pr", "parity"], nargs="+")
+parser.add_argument("-s", "--show", help="chosse what to show (plot & stdout output)", choices=["all", "none", "hyperparams", "report", "importance", "roc", "pr", "parity"], nargs="+", default="none")
 args = parser.parse_args()
 
 args.type = args.type[0]
