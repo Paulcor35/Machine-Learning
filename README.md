@@ -2,6 +2,7 @@
 Collet William, Cornen Paul, Fouquet Ulysse, Guermeur Nicolas & Léon Pierre
 
 # Prérequis
+Les librairies nécessaires sont dans `requirements.txt`. Elles peuvent être installées avec `pip install -r requirements.txt`
 
 # Lancement des algorithmes
 ## Tout lancer
