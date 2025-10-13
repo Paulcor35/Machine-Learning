@@ -24,48 +24,56 @@ DecisionTree:
 RandomForest:
   scratch:
     r:
-      n_estimators: 100
+      n_estimators: 50
+      max_depth: 10
+      min_samples_split: 4
+      max_features: Null
+      bootstrap: True
       random_state: 0
       n_jobs: -1
     c:
-      n_estimators: 100
-      max_depth: 15
-      min_samples_split: 8
+      n_estimators: 200
+      max_depth: 7
+      min_samples_split: 6
       min_samples_leaf: 4
+      max_features: Null
+      bootstrap: True
       n_jobs: -1
       random_state: 0
   scikit:
     r:
-      n_estimators: 100
-      criterion: squared_error
+      n_estimators: 300
+      max_depth: 12
+      min_samples_split: 4
+      min_samples_leaf: 4
       bootstrap: true
-      max_features: sqrt
+      max_features: Null
       n_jobs: -1
       random_state: 0
-
     c:
-      n_estimators: 100
-      criterion: entropy
-      max_depth: 15
+      n_estimators: 150
+      criterion: gini
+      max_depth: 13
       min_samples_split: 8
-      min_samples_leaf: 4
-      max_features: sqrt
+      min_samples_leaf: 2
+      max_features: Null
       bootstrap: true
       n_jobs: -1
       random_state: 0
 Ridge:
   scratch:
     r:
-      alpha: 323.745754281764
+      alpha: 10
   scikit:
     r:
-      alpha:  323.745754281764
+      alpha:  10
 Lasso:
   scratch:
     r:
-      learning_rate:  0.05
-      iterations:  5000
-      l1_penalty:  0.01
+      learning_rate:  0.1
+      max_iter:  1250
+      l1_penalty:  0.1
+      tol: 1e-5
   scikit:
     r:
       alpha:    0.01
