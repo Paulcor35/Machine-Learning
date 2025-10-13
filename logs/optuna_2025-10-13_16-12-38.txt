@@ -1,0 +1,130 @@
+==== START 13/10/2025 16:12:38,57 ====
+
+Best trial:
+  value: 0.580821
+  params:
+    max_depth: 4
+    min_samples_split: 4
+    min_samples_leaf: 9
+    max_splits_per_feature: 512
+    min_gain: 3e-06
+
+Best trial:
+  value: 0.575104
+  params:
+    criterion: squared_error
+    max_depth: 4
+    min_samples_split: 14
+    min_samples_leaf: 2
+
+Best trial:
+  value: 0.660204
+  params:
+    n_estimators: 250
+    max_depth: 12
+    min_samples_split: 7
+    max_features: None
+    bootstrap: True
+
+Best trial:
+  value: 0.654162
+  params:
+    n_estimators: 100
+    max_depth: 8
+    min_samples_split: 4
+    min_samples_leaf: 4
+    max_features: None
+    bootstrap: True
+
+Best trial:
+  value: 0.639872
+  params:
+    alpha: 10
+
+Best trial:
+  value: 0.639872
+  params:
+    alpha: 10
+
+Best trial:
+  value: 0.641058
+  params:
+    learning_rate: 0.1
+    l1_penalty: 0.1
+    max_iter: 1250
+    tol: 1e-05
+
+Best trial:
+  value: 0.640689
+  params:
+    alpha: 0.03
+    max_iter: 1800
+    tol: 3e-06
+
+Best trial:
+  value: 0.634922
+  params:
+    learning_rate: 0.0001
+    C: 1000
+    epsilon: 1.0
+    n_iters: 350
+
+Best trial:
+  value: 0.636582
+  params:
+    C: 0.2
+    epsilon: 0.1
+    max_iter: 1000
+
+Best trial:
+  value: 0.551724
+  params:
+    max_depth: 8
+    min_samples_split: 12
+    min_samples_leaf: 7
+    max_thresholds: 128
+    min_gain: 0.0001
+
+Best trial:
+  value: 0.676471
+  params:
+    criterion: entropy
+    max_depth: 9
+    min_samples_split: 16
+    min_samples_leaf: 3
+
+Best trial:
+  value: 0.740741
+  params:
+    n_estimators: 200
+    max_depth: 9
+    min_samples_split: 10
+    min_samples_leaf: 3
+    max_features: None
+    bootstrap: True
+
+Best trial:
+  value: 0.740741
+  params:
+    n_estimators: 250
+    criterion: gini
+    max_depth: 6
+    min_samples_split: 2
+    min_samples_leaf: 1
+    max_features: None
+    bootstrap: True
+
+Best trial:
+  value: 0.786885
+  params:
+    learning_rate: 1e-05
+    C: 2
+    n_iters: 9300
+
+Best trial:
+  value: 0.786885
+  params:
+    C: 2
+    loss: squared_hinge
+    max_iter: 3500
+==== END 13/10/2025 16:12:38,57 ====

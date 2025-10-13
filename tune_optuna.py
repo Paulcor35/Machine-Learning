@@ -36,6 +36,10 @@ import numpy as np
 import optuna
 import utils
 import bench
+import warnings
+
+optuna.logging.set_verbosity(optuna.logging.ERROR)
+warnings.filterwarnings("ignore")
 
 # ----------------------------- arg parsing -----------------------------
 

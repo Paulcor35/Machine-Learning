@@ -76,8 +76,9 @@ Lasso:
       tol: 1e-5
   scikit:
     r:
-      alpha:    0.01
-      max_iter:  5000
+      alpha:    0.03
+      max_iter: 1800
+      tol: 3e-6
 SVM:
   scratch:
     r:
@@ -99,8 +100,8 @@ SVM:
       max_iter: 10000
       random_state: 0
     c:
-      C:    9
-      loss:    hinge
+      C:    2
+      loss:    squared_hinge
       fit_intercept:  true
-      max_iter: 10000
+      max_iter: 3500
       random_state:  0

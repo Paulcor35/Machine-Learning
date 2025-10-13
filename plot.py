@@ -71,7 +71,7 @@ def print_regression_report(models_results: List[Dict], labels: List[str]) -> No
 	print("\n=== Regression report ===")
 	for lab, res in zip(labels, models_results):
 		m = res["reg_metrics"]; t = res["times"]
-		print(f"{lab:>20} | MSE={m['mse']:.4f} | MAE={m['mae']:.4f} | R²={m['r2']:.4f} | "
+		print(f"{lab:>20} | MSE={m['mse']:.4f} | RMSE={m['rmse']:.4f} | MAE={m['mae']:.4f} | R²={m['r2']:.4f} | "
 			  f"fit={t['fit']*1000:.1f} ms | pred={t['predict']*1000:.1f} ms")
 
 def plot_regression_parity(y_true: np.ndarray, models_results: List[Dict], labels: List[str],

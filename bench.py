@@ -124,15 +124,21 @@ def benchmark_classification(model, X_train: np.ndarray, y_train: np.ndarray,
 	}
 
 def benchmark_regression(model, X_train: np.ndarray, y_train: np.ndarray,
-						 X_test: np.ndarray, y_test: np.ndarray) -> Dict:
-	times = {}
-	t0 = perf_counter(); model.fit(X_train, y_train); times["fit"] = perf_counter() - t0
-	t0 = perf_counter(); y_pred = model.predict(X_test); times["predict"] = perf_counter() - t0
+                         X_test: np.ndarray, y_test: np.ndarray) -> Dict:
+    times = {}
+    t0 = perf_counter(); model.fit(X_train, y_train); times["fit"] = perf_counter() - t0
+    t0 = perf_counter(); y_pred = model.predict(X_test); times["predict"] = perf_counter() - t0
 
-	mse = float(np.mean((y_test - y_pred) ** 2))
-	mae = float(np.mean(np.abs(y_test - y_pred)))
-	ss_tot = float(np.sum((y_test - np.mean(y_test)) ** 2))
-	ss_res = float(np.sum((y_test - y_pred) ** 2))
-	r2 = 1.0 - (ss_res / ss_tot if ss_tot > 0 else 0.0)
+    mse = float(np.mean((y_test - y_pred) ** 2))
+    rmse = float(np.sqrt(mse))
+    mae = float(np.mean(np.abs(y_test - y_pred)))
+    ss_tot = float(np.sum((y_test - np.mean(y_test)) ** 2))
+    ss_res = float(np.sum((y_test - y_pred) ** 2))
+    r2 = 1.0 - (ss_res / ss_tot if ss_tot > 0 else 0.0)
 
-	return {"model": model, "y_pred": y_pred, "times": times, "reg_metrics": {"mse": mse, "mae": mae, "r2": r2}}
+    return {
+        "model": model,
+        "y_pred": y_pred,
+        "times": times,
+        "reg_metrics": {"mse": mse, "rmse": rmse, "mae": mae, "r2": r2},
+    }
