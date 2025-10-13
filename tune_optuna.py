@@ -73,7 +73,7 @@ def suggest_params(trial: optuna.Trial, algo: str, typ: str, lib: str):
     LOG_1_3_10 = lambda lo, hi: [v for v in
         [m * 10**e for e in range(-6, 7) for m in (1, 3, 10)] if lo <= v <= hi]
 
-    GR_C      = LOG_1_2_5(1e-1, 1e2)          # C ∈ {0.1,0.2,0.5,1,2,5,10,20,50,100}
+    GR_C      = LOG_1_2_5(1e-1, 1e3)          # C ∈ {0.1,0.2,0.5,1,2,5,10,20,50,100,200,500,1000}
     GR_LR     = [0.00001, 0.0001, 0.001, 0.01, 0.1]  # learning_rate
     GR_EPS    = [0.001, 0.01, 0.1, 0.2, 0.5, 1.0] # epsilon
     GR_ALPHA  = LOG_1_3_10(1e-3, 1e3)         # alpha Ridge/Lasso
@@ -205,7 +205,7 @@ def suggest_params(trial: optuna.Trial, algo: str, typ: str, lib: str):
                 return {
                     "learning_rate": trial.suggest_categorical("learning_rate", GR_LR),
                     "C": trial.suggest_categorical("C", GR_C),
-                    "n_iters": trial.suggest_int("n_iters", 100, 800, step=50),
+                    "n_iters": trial.suggest_int("n_iters", 100, 10000, step=100),
                     "shuffle": True,
                     "random_state": args.seed,
                     "dtype": "float32",

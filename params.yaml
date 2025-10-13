@@ -81,10 +81,10 @@ Lasso:
 SVM:
   scratch:
     r:
-      learning_rate: 1e-2
-      C: 500
-      epsilon: 0.1
-      n_iters: 1000
+      learning_rate: 1e-5
+      C: 1000
+      epsilon: 1.0
+      n_iters: 350
       random_state: 0
     c:
       learning_rate:  1e-3
@@ -99,7 +99,7 @@ SVM:
       max_iter: 10000
       random_state: 0
     c:
-      C:    9.0
+      C:    9
       loss:    hinge
       fit_intercept:  true
       max_iter: 10000
