@@ -131,7 +131,7 @@ def suggest_params(trial: optuna.Trial, algo: str, typ: str, lib: str):
                     "max_features": trial.suggest_categorical("max_features", ["sqrt", "log2", None]),
                     "bootstrap": trial.suggest_categorical("bootstrap", [True, False]),
                     "random_state": args.seed,
-                    "n_jobs": 1,
+                    "n_jobs": -1,
                 }
             else:  # scikit
                 return {
@@ -155,7 +155,7 @@ def suggest_params(trial: optuna.Trial, algo: str, typ: str, lib: str):
                     "max_features": trial.suggest_categorical("max_features", ["sqrt", "log2", None]),
                     "bootstrap": trial.suggest_categorical("bootstrap", [True, False]),
                     "random_state": args.seed,
-                    "n_jobs": 1,
+                    "n_jobs": -1,
                 }
             else:  # scikit
                 return {
