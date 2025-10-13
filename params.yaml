@@ -66,7 +66,7 @@ Ridge:
       alpha: 10
   scikit:
     r:
-      alpha:  10
+      alpha: 10
 Lasso:
   scratch:
     r:
