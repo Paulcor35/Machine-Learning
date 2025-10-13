@@ -87,11 +87,38 @@ def read_params() -> dict[str, dict[str, any]]:
 		params = yaml.safe_load(fp)
 	return params
 
+def _coerce_like(ref, v):
+	"""Coerce v to the type/shape of ref when possible (bool/int/float/ndarray)."""
+	if isinstance(ref, (np.floating, float)):
+		try:
+			return float(v)
+		except Exception:
+			return v
+	if isinstance(ref, (np.integer, int)) and not isinstance(v, bool):
+		try:
+			fv = float(v) if isinstance(v, str) else v
+			iv = int(fv)
+			if isinstance(fv, float) and fv != iv:
+				return v
+			return iv
+		except Exception:
+			return v
+	if isinstance(ref, (bool, np.bool_)):
+		if isinstance(v, str):
+			return v.strip().lower() in ("1", "true", "yes", "y", "on")
+		return bool(v)
+	if isinstance(ref, np.ndarray):
+		try:
+			return np.asarray(v, dtype=ref.dtype)
+		except Exception:
+			return v
+	return v
+
 def apply_params(model, algo_name: str, typ: str, params: dict, ar: list[str], is_sci=False) -> None:
 	"""
 	Applies all the hyperparameters read from params.yaml to the model
 	- For scikit: uses model.set_params(**par)
-	- For scratch: setattr (or set_params if available)
+	- For scratch: setattr
 	"""
 	# Secure the dict reading
 	par = (
@@ -103,24 +130,36 @@ def apply_params(model, algo_name: str, typ: str, params: dict, ar: list[str], i
 	if not par:
 		return
 
+	# Coerce types based on current attributes when possible
+	coerced = {}
+	for k, v in par.items():
+		if hasattr(model, k):
+			try:
+				ref = getattr(model, k)
+				coerced[k] = _coerce_like(ref, v)
+			except Exception:
+				coerced[k] = v
+		else:
+			coerced[k] = v
+
 	if in_args(ar, "hyperparams"):
 		print(f"\nHyperparameters applied to {algo_name} "
 			  f"({'scikit-learn' if is_sci else 'scratch'}) [{typ}] :")
-		for k, v in par.items():
+		for k, v in coerced.items():
 			print(f"   {k}: {v}")
 		print("-" * 60)
 
 	try:
 		if hasattr(model, "set_params"):
-			model.set_params(**par)  # scikit
+			model.set_params(**coerced)
 		else:
-			for k, v in par.items():
-				setattr(model, k, v)  # scratch
-	except Exception as e:
-		for k, v in par.items():
+			for k, v in coerced.items():
+				setattr(model, k, v)
+	except Exception:
+		for k, v in coerced.items():
 			try:
 				setattr(model, k, v)
-			except:
+			except Exception:
 				pass
 
 def in_args(ar: list[str], val: str) -> bool:

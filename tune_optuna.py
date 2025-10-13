@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
 """
@@ -6,7 +6,7 @@ Optuna tuner for scratch & scikit models.
 
 Usage
 -----
-python optuna_tune.py \
+python tune_optuna.py \
   -f Data-20251001/ozone_complet.txt \
   -t r \
   -F maxO3 \
@@ -14,7 +14,7 @@ python optuna_tune.py \
   --lib scratch \
   --n-trials 50
 
-python optuna_tune.py \
+python tune_optuna.py \
   -f Data-20251001/Carseats_prepared.csv \
   -t c \
   -F High \
@@ -73,7 +73,7 @@ def suggest_params(trial: optuna.Trial, algo: str, typ: str, lib: str):
     LOG_1_3_10 = lambda lo, hi: [v for v in
         [m * 10**e for e in range(-6, 7) for m in (1, 3, 10)] if lo <= v <= hi]
 
-    GR_C      = LOG_1_2_5(1e-1, 1e2)          # C ∈ {0.1,0.2,0.5,1,2,5,10,20,50,100}
+    GR_C      = LOG_1_2_5(1e-1, 1e3)          # C ∈ {0.1,0.2,0.5,1,2,5,10,20,50,100,200,500,1000}
     GR_LR     = [0.00001, 0.0001, 0.001, 0.01, 0.1]  # learning_rate
     GR_EPS    = [0.001, 0.01, 0.1, 0.2, 0.5, 1.0] # epsilon
     GR_ALPHA  = LOG_1_3_10(1e-3, 1e3)         # alpha Ridge/Lasso
@@ -125,7 +125,7 @@ def suggest_params(trial: optuna.Trial, algo: str, typ: str, lib: str):
         if typ == "r":
             if lib == "scratch":
                 return {
-                    "n_estimators": trial.suggest_int("n_estimators", 100, 400, step=50),
+                    "n_estimators": trial.suggest_int("n_estimators", 100, 500, step=50),
                     "max_depth": trial.suggest_categorical("max_depth", [None, 6, 8, 10, 12]),
                     "min_samples_split": trial.suggest_int("min_samples_split", 2, 12, step=1),
                     "max_features": trial.suggest_categorical("max_features", ["sqrt", "log2", None]),
@@ -135,7 +135,7 @@ def suggest_params(trial: optuna.Trial, algo: str, typ: str, lib: str):
                 }
             else:  # scikit
                 return {
-                    "n_estimators": trial.suggest_int("n_estimators", 100, 400, step=50),
+                    "n_estimators": trial.suggest_int("n_estimators", 100, 500, step=50),
                     "criterion": "squared_error",
                     "max_depth": trial.suggest_categorical("max_depth", [None, 6, 8, 10, 12]),
                     "min_samples_split": trial.suggest_int("min_samples_split", 2, 12, step=1),
@@ -205,7 +205,7 @@ def suggest_params(trial: optuna.Trial, algo: str, typ: str, lib: str):
                 return {
                     "learning_rate": trial.suggest_categorical("learning_rate", GR_LR),
                     "C": trial.suggest_categorical("C", GR_C),
-                    "n_iters": trial.suggest_int("n_iters", 100, 800, step=50),
+                    "n_iters": trial.suggest_int("n_iters", 100, 10000, step=100),
                     "shuffle": True,
                     "random_state": args.seed,
                     "dtype": "float32",
@@ -243,19 +243,26 @@ def suggest_params(trial: optuna.Trial, algo: str, typ: str, lib: str):
 def build_model_and_apply_params(algo: str, typ: str, lib: str, par: dict):
     """
     Create model (scratch or scikit) and push params dict into it.
+    Uses utils.algos_map / utils.algos_sci_map (no utils.get_class needed).
     """
     if lib == "scratch":
-        ModelClass = utils.get_class(algo, typ)
+        try:
+            ModelClass = utils.algos_map[algo][typ]
+        except KeyError as e:
+            raise ValueError(f"Unknown scratch model for algo={algo}, typ={typ}") from e
         model = ModelClass()
     else:
-        model = utils.algos_sci_map[algo][typ]()  # scikit class
+        try:
+            ModelClass = utils.algos_sci_map[algo][typ]
+        except KeyError as e:
+            raise ValueError(f"Unknown scikit model for algo={algo}, typ={typ}") from e
+        model = ModelClass()
 
     # Best-effort set_params or setattr
     if hasattr(model, "set_params"):
         try:
             model.set_params(**par)
         except Exception:
-            # fallback to setattr for any leftover keys
             for k, v in par.items():
                 try:
                     setattr(model, k, v)
@@ -323,15 +330,3 @@ if __name__ == "__main__":
     print("  params:")
     for k, v in bt.params.items():
         print(f"    {k}: {v}")
-
-    # Optional: show a compact dict to copy/paste into params.yaml if you like
-    print("\nYAML-like snippet to paste under params:")
-    print(f"{args.algorithm}:")
-    print(f"  {args.lib}:")
-    print(f"    {typ}:")
-    for k, v in bt.params.items():
-        # basic formatting (floats vs ints)
-        if isinstance(v, float):
-            print(f"      {k}: {v:.6g}")
-        else:
-            print(f"      {k}: {v}")
