@@ -12,23 +12,23 @@ parser.add_argument("-f", "--file", help="input file", required=True)
 parser.add_argument("-t", "--type", help="algorithm type", choices=["r", "regression", "c", "classification"], default="r")
 parser.add_argument("-F", "--to-find", help="dependant var to find", required=True)
 parser.add_argument("-a", "--algorithm", help="algorithm to train and use", choices=["DecisionTree", "RandomForest", "Ridge", "Lasso", "SVM"], required=True)
+parser.add_argument("-s", "--show", help="chosse what to show (plot & stdout output)", choices=["all", "none", "hyperparams", "report", "importance", "roc", "pr", "parity"], nargs="+")
 args = parser.parse_args()
 
 args.type = args.type[0]
 
-def _maybe_plot_importances(m, label, feature_names):
-    weights = None
-    if hasattr(m, "coef_") and m.coef_ is not None:
-        weights = np.ravel(m.coef_)
-    elif hasattr(m, "w") and m.w is not None:
-        weights = np.ravel(m.w)
-    if weights is not None and weights.size == len(feature_names):
-        plot.plot_linear_importances(weights, feature_names, top_k=10, title=f"{label} - importances")
+def _maybe_plot_importances(m, label, feature_names) -> None:
+	weights = None
+	if hasattr(m, "coef_") and m.coef_ is not None:
+		weights = np.ravel(m.coef_)
+	elif hasattr(m, "w") and m.w is not None:
+		weights = np.ravel(m.w)
+	if weights is not None and weights.size == len(feature_names):
+		plot.plot_linear_importances(weights, feature_names, top_k=10, title=f"{label} - importances")
 
 
 def main():
-	ModelClass = utils.get_class(args.algorithm, args.type)
-	model = ModelClass()
+	model = utils.algos_map[args.algorithm][args.type]()
 	if args.type not in model.typ:
 		try:
 			raise TypeError("bad type")
@@ -36,7 +36,7 @@ def main():
 			e.add_note(f"{args.algorithm} doesn't support {utils.type_map[args.type]}")
 	params = utils.read_params()
 
-	utils.apply_params(model, args.algorithm, args.type, params, is_sci=False)
+	utils.apply_params(model, args.algorithm, args.type, params, args.show, is_sci=False)
 
 	# Read and prepare data
 	df = utils.read_file_wtype(args.file, args.type)
@@ -54,24 +54,30 @@ def main():
 	X_test  = (X_test  - mu)/sigma
 
 	model_sci = utils.algos_sci_map[args.algorithm][args.type]()
-	utils.apply_params(model_sci, args.algorithm, args.type, params, is_sci=True)
+	utils.apply_params(model_sci, args.algorithm, args.type, params, args.show, is_sci=True)
 
-	if ModelClass.typ == "c":
+	if model.typ == "c":
 		res = bench.benchmark_classification(model, X_train, y_train, X_test, y_test)
 		res_sci = bench.benchmark_classification(model_sci, X_train, y_train, X_test, y_test)
 
-		plot.print_classification_report([res, res_sci], [args.algorithm, f"{args.algorithm}_scikit"])
-		#plot.plot_roc([res, res_sci], [args.algorithm, f"{args.algorithm}_scikit"])
-		#plot.plot_pr([res, res_sci], [args.algorithm, f"{args.algorithm}_scikit"])
+		if utils.in_args(args.show, "report"):
+			plot.print_classification_report([res, res_sci], [args.algorithm, f"{args.algorithm}_scikit"])
+		if utils.in_args(args.show, "roc"):
+			plot.plot_roc([res, res_sci], [args.algorithm, f"{args.algorithm}_scikit"])
+		if utils.in_args(args.show, "pr"):
+			plot.plot_pr([res, res_sci], [args.algorithm, f"{args.algorithm}_scikit"])
 	else:
 		res = bench.benchmark_regression(model, X_train, y_train, X_test, y_test)
 		res_sci = bench.benchmark_regression(model_sci, X_train, y_train, X_test, y_test)
 
-		plot.print_regression_report([res, res_sci], [args.algorithm, f"{args.algorithm}_scikit"])
-		#plot.plot_regression_parity(y_test.to_numpy(dtype=float), [res, res_sci], [args.algorithm, f"{args.algorithm}_scikit"])
+		if utils.in_args(args.show, "report"):
+			plot.print_regression_report([res, res_sci], [args.algorithm, f"{args.algorithm}_scikit"])
+		if utils.in_args(args.show, "parity"):
+			plot.plot_regression_parity(y_test.to_numpy(dtype=float), [res, res_sci], [args.algorithm, f"{args.algorithm}_scikit"])
 
-	#_maybe_plot_importances(res["model"], args.algorithm, feature_names)
-	#_maybe_plot_importances(res_sci["model"], f"{args.algorithm}_scikit", feature_names)
+	if utils.in_args(args.show, "importance"):
+		_maybe_plot_importances(res["model"], args.algorithm, feature_names)
+		_maybe_plot_importances(res_sci["model"], f"{args.algorithm}_scikit", feature_names)
 
 if __name__ == "__main__":
 	main()

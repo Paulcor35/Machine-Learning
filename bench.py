@@ -3,7 +3,7 @@
 import numpy as np
 from time import perf_counter
 from contextlib import contextmanager
-from typing import Dict, Tuple, List, Any
+from typing import List, Tuple, Dict, Any
 
 
 @contextmanager
@@ -34,7 +34,7 @@ def evaluate_at_threshold(y_true: np.ndarray, scores: np.ndarray, thr: float) ->
 
 def search_best_threshold(y_true: np.ndarray, scores: np.ndarray,
 						  percentiles: np.ndarray = np.linspace(1, 99, 99)) -> Tuple[Dict[str, Any], np.ndarray, np.ndarray, np.ndarray]:
-	"""Balaye une grille de seuils (percentiles des scores) et retourne le meilleur F1."""
+	"""Goes through the grid of thresholds (percentiles of the scores) and returns the best F1."""
 	thr_list = np.percentile(scores, percentiles)
 	best = {"thr": 0.0, "f1": -1.0}
 	rec_list, prec_list = [], []
@@ -46,7 +46,7 @@ def search_best_threshold(y_true: np.ndarray, scores: np.ndarray,
 	return best, np.array(rec_list), np.array(prec_list), thr_list
 
 def roc_curve_from_scores(y_true: np.ndarray, s: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-	"""Courbe ROC sans sklearn."""
+	"""ROC curve without sklearn."""
 	thr = np.sort(np.unique(s))
 	thr = np.concatenate(([-np.inf], thr, [np.inf]))
 	tpr, fpr = [], []
@@ -71,68 +71,68 @@ def pr_auc(rec: np.ndarray, prec: np.ndarray) -> float:
 
 # ---------- Benchmark helper ----------
 def benchmark_classification(model, X_train: np.ndarray, y_train: np.ndarray,
-                    X_test: np.ndarray, y_test: np.ndarray,
-                    threshold_grid: np.ndarray | None = None) -> Dict[str, Any]:
-    """
-    Entraîne un modèle (avec .fit), mesure les temps,
-    puis récupère des SCORES (pas des labels) pour ROC/PR :
-      - decision_function si dispo
-      - sinon predict_proba[:,1]
-      - sinon predict (dernier recours)
-    """
-    times: Dict[str, float] = {}
-    with timer("fit", store=times):
-        model.fit(X_train, y_train)
+					X_test: np.ndarray, y_test: np.ndarray,
+					threshold_grid: np.ndarray | None = None) -> Dict[str, Any]:
+	"""
+	Trains a model (with .fit), mesures the times,
+	then collects the SCORES (no labels) for ROC/PR :
+	  - decision_function if available
+	  - else predict_proba[:,1]
+	  - else predict (last resort)
+	"""
+	times: Dict[str, float] = {}
+	with timer("fit", store=times):
+		model.fit(X_train, y_train)
 
-    # ---- récupérer des SCORES correctement
-    with timer("predict(scores)", store=times):
-        if hasattr(model, "decision_function"):
-            scores = model.decision_function(X_test)
-        elif hasattr(model, "predict_proba"):
-            proba = model.predict_proba(X_test)
-            # classe positive supposée en colonne 1
-            scores = proba[:, 1] if proba.ndim == 2 and proba.shape[1] > 1 else proba.ravel()
-        else:
-            # dernier recours: certains scratch renvoient déjà des scores via predict
-            scores = model.predict(X_test)
+	# ---- Get the SCORES
+	with timer("predict(scores)", store=times):
+		if hasattr(model, "decision_function"):
+			scores = model.decision_function(X_test)
+		elif hasattr(model, "predict_proba"):
+			proba = model.predict_proba(X_test)
+			# positive class supposed to be in column 1
+			scores = proba[:, 1] if proba.ndim == 2 and proba.shape[1] > 1 else proba.ravel()
+		else:
+			# last resort: some scratch renvoient already return scores with predict
+			scores = model.predict(X_test)
 
-    base_metrics, _ = evaluate_at_threshold(y_test, scores, 0.0)
+	base_metrics, _ = evaluate_at_threshold(y_test, scores, 0.0)
 
-    if threshold_grid is None:
-        best, rec_list, prec_list, thr_list = search_best_threshold(y_test, scores)
-    else:
-        best = {"thr": 0.0, "f1": -1.0}
-        rec_list, prec_list, thr_list = [], [], threshold_grid
-        for thr in threshold_grid:
-            m, _ = evaluate_at_threshold(y_test, scores, float(thr))
-            rec_list.append(m["rec"]); prec_list.append(m["prec"])
-            if m["f1"] > best["f1"]:
-                best = {"thr": float(thr), **m}
+	if threshold_grid is None:
+		best, rec_list, prec_list, thr_list = search_best_threshold(y_test, scores)
+	else:
+		best = {"thr": 0.0, "f1": -1.0}
+		rec_list, prec_list, thr_list = [], [], threshold_grid
+		for thr in threshold_grid:
+			m, _ = evaluate_at_threshold(y_test, scores, float(thr))
+			rec_list.append(m["rec"]); prec_list.append(m["prec"])
+			if m["f1"] > best["f1"]:
+				best = {"thr": float(thr), **m}
 
-    fpr, tpr = roc_curve_from_scores(y_test, scores)
-    roc_auc = auc_trapz(fpr, tpr)
-    pr_area = pr_auc(np.array(rec_list), np.array(prec_list))
+	fpr, tpr = roc_curve_from_scores(y_test, scores)
+	roc_auc = auc_trapz(fpr, tpr)
+	pr_area = pr_auc(np.array(rec_list), np.array(prec_list))
 
-    return {
-        "model": model,
-        "scores": scores,
-        "times": times,
-        "base_metrics": base_metrics,
-        "best_metrics": best,
-        "roc": (fpr, tpr, roc_auc),
-        "pr": (np.array(rec_list), np.array(prec_list), pr_area),
-    }
+	return {
+		"model": model,
+		"scores": scores,
+		"times": times,
+		"base_metrics": base_metrics,
+		"best_metrics": best,
+		"roc": (fpr, tpr, roc_auc),
+		"pr": (np.array(rec_list), np.array(prec_list), pr_area),
+	}
 
 def benchmark_regression(model, X_train: np.ndarray, y_train: np.ndarray,
-                         X_test: np.ndarray, y_test: np.ndarray) -> dict:
-    times = {}
-    t0 = perf_counter(); model.fit(X_train, y_train); times["fit"] = perf_counter() - t0
-    t0 = perf_counter(); y_pred = model.predict(X_test); times["predict"] = perf_counter() - t0
+						 X_test: np.ndarray, y_test: np.ndarray) -> Dict:
+	times = {}
+	t0 = perf_counter(); model.fit(X_train, y_train); times["fit"] = perf_counter() - t0
+	t0 = perf_counter(); y_pred = model.predict(X_test); times["predict"] = perf_counter() - t0
 
-    mse = float(np.mean((y_test - y_pred) ** 2))
-    mae = float(np.mean(np.abs(y_test - y_pred)))
-    ss_tot = float(np.sum((y_test - np.mean(y_test)) ** 2))
-    ss_res = float(np.sum((y_test - y_pred) ** 2))
-    r2 = 1.0 - (ss_res / ss_tot if ss_tot > 0 else 0.0)
+	mse = float(np.mean((y_test - y_pred) ** 2))
+	mae = float(np.mean(np.abs(y_test - y_pred)))
+	ss_tot = float(np.sum((y_test - np.mean(y_test)) ** 2))
+	ss_res = float(np.sum((y_test - y_pred) ** 2))
+	r2 = 1.0 - (ss_res / ss_tot if ss_tot > 0 else 0.0)
 
-    return {"model": model, "y_pred": y_pred, "times": times, "reg_metrics": {"mse": mse, "mae": mae, "r2": r2}}
+	return {"model": model, "y_pred": y_pred, "times": times, "reg_metrics": {"mse": mse, "mae": mae, "r2": r2}}

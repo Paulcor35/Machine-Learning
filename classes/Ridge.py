@@ -1,94 +1,84 @@
-# classes/Ridge.py
 #!/usr/bin/python3
 # -*- Mode: Python; tab-width: 4; indent-tabs-mode: t; c-basic-offset: 4 -*- #
-
 import numpy as np
 
 class Ridge:
-    """
-    Régression Ridge (aussi appelée régression à crête),
-    basée sur une solution analytique fermée avec régularisation L2.
+	"""
+	Ridge Regression (also known as Tikhonov regularization or L2-regularized least squares).
 
-    Principe
-    --------
-    Ridge ajoute un terme de pénalisation L2 aux moindres carrés pour
-    contraindre la norme des coefficients et réduire la variance du modèle.
-    On résout (en excluant le biais de la pénalisation) :
-        min_{w,b}  ||y - (Xw + b)||² + α ||w||²
-    La solution fermée s’obtient en augmentant X d’une colonne de 1 (biais)
-    puis en résolvant un système linéaire régularisé où seule la partie
-    “poids” est pénalisée.
+	This model solves a linear regression problem with an added L2 penalty term
+	to constrain the magnitude of the coefficients, thereby reducing model variance
+	and mitigating overfitting. It uses a closed-form analytical solution with
+	regularization applied only to the weight coefficients, not the bias.
 
-    Paramètres
-    ----------
-    alpha : float
-        Coefficient de régularisation (λ).
-        Plus alpha est grand, plus les poids sont contraints à être petits,
-        ce qui réduit le sur-apprentissage mais augmente le biais.
+	Principle
+	---------
+	Ridge regression minimizes the following objective:
+		min_{w, b}  ||y - (Xw + b)||² + α ||w||²
 
-    Notes
-    -----
-    - Fonction de coût :
-        L(w, b) = ||y - (X·w + b)||² + α * ||w||²
-      où seule la partie w (les poids) est régularisée, pas le biais b.
-    - Solution fermée :
-        β = (XᵀX + αI)⁻¹ Xᵀy
-      avec β = [b, w₁, …, w_p] et la première diagonale (b) non régularisée.
-    - Implémentation stable : on utilise `np.linalg.solve` plutôt que
-      l’inversion explicite pour de meilleures propriétés numériques.
+	The solution is obtained by augmenting X with a column of ones (for the bias term)
+	and solving a regularized linear system where only the weight vector w is penalized.
 
-    Avantages
-    ---------
-    - Fermée et rapide : pas d’itérations (utile pour des datasets moyens/grands).
-    - Robuste à la multicolinéarité et aux matrices mal conditionnées.
-    - Réduit la variance des estimations (meilleure généralisation).
-    - Simple, interprétable et compatible avec un pipeline linéaire standard.
+	Parameters
+	----------
+	alpha : float
+		Regularization strength (λ).
+		Larger values of alpha shrink the weights more strongly,
+		reducing overfitting at the cost of increased bias.
 
-    Attributs principaux
-    --------------------
-    coef_      : np.ndarray
-        Vecteur des coefficients (w).
-    intercept_ : float
-        Biais non régularisé.
-    w          : np.ndarray
-        Alias de coef_ (compatibilité avec d’autres modèles).
-    """
+	Notes
+	-----
+	Cost function:
+		L(w, b) = ||y - (X·w + b)||² + α · ||w||²
+	Only the weight vector w is regularized; the bias term b is excluded.
 
-    typ = 'r'
+	Closed-form solution:
+		β = (XᵀX + αI)⁻¹ Xᵀy
+	where β = [b, w₁, …, w_p], and the first diagonal element (corresponding to b)
+	is not regularized.
 
-    def __init__(self, alpha: float = 1.0):
-        self.alpha = float(alpha)
-        self.coef_: np.ndarray | None = None
-        self.intercept_: float = 0.0
+	Numerical stability:
+	The implementation uses `np.linalg.solve` instead of explicit matrix inversion
+	to ensure better numerical stability and performance.
 
-    def fit(self, X, y):
-        X = np.asarray(X, dtype=float)
-        y = np.asarray(y, dtype=float).reshape(-1)
+	Attributes
+	----------
+	w : np.ndarray
+		Learned coefficient vector.
+	intercept_ : float
+		Unregularized bias term.
+	"""
 
-        # Ajout de la colonne de biais
-        Xb = np.column_stack([np.ones(X.shape[0]), X])
 
-        n_features_plus_bias = Xb.shape[1]
-        I = np.eye(n_features_plus_bias)
-        I[0, 0] = 0.0  # ne pas régulariser l’intercept
+	typ = 'r'
 
-        # (X^T X + alpha I)^{-1} X^T y (solve pour stabilité)
-        A = Xb.T @ Xb + self.alpha * I
-        b = Xb.T @ y
-        beta = np.linalg.solve(A, b)
+	def __init__(self, alpha: float = 1.0):
+		self.alpha = float(alpha)
+		self.w: np.ndarray | None = None
+		self.intercept_: float = 0.0
 
-        # Stockage façon scikit
-        self.intercept_ = float(beta[0])
-        self.coef_ = beta[1:].astype(float)
-        return self
+	def fit(self, X: np.ndarray, y: np.ndarray):
+		X = np.asarray(X, dtype=float)
+		y = np.asarray(y, dtype=float).reshape(-1)
 
-    def predict(self, X):
-        if self.coef_ is None:
-            raise RuntimeError("Ridge non entraîné : appelez fit(X, y) d'abord.")
-        X = np.asarray(X, dtype=float)
-        return X @ self.coef_ + self.intercept_
+		# Add the bias column
+		Xb = np.column_stack([np.ones(X.shape[0]), X])
 
-    # Alias pour compat avec tes autres modèles (SVC/SVR) et tes plots
-    @property
-    def w(self):
-        return self.coef_
+		n_features_plus_bias = Xb.shape[1]
+		I = np.eye(n_features_plus_bias)
+		I[0, 0] = 0.0  # don't regularize the intercept
+
+		A = Xb.T @ Xb + self.alpha * I
+		b = Xb.T @ y
+		beta = np.linalg.solve(A, b)
+
+		# Stockage façon scikit
+		self.intercept_ = float(beta[0])
+		self.w = beta[1:].astype(float)
+		return self
+
+	def predict(self, X: np.ndarray):
+		if self.w is None:
+			raise RuntimeError("The model isn't trained, call `fit` first")
+		X = np.asarray(X, dtype=float)
+		return X @ self.w + self.intercept_
