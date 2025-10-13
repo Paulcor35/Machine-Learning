@@ -68,7 +68,7 @@ def read_classif(fname: str) -> pd.DataFrame:
 	# simple binary encoding
 	for col in ["High", "Urban", "US"]:
 		if col in df.columns:
-			df[col] = df[col].replace({"Yes": 1, "No": 0})
+			df[col] = df[col].map({"Yes": 1, "No": 0}).astype("int8")
 	# one-hot ShelveLoc if present
 	if "ShelveLoc" in df.columns:
 		df = pd.get_dummies(df, columns=["ShelveLoc"], drop_first=True)
