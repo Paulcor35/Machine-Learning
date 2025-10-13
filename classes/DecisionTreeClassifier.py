@@ -3,7 +3,7 @@
 import numpy as np
 from collections import Counter
 from dataclasses import dataclass
-from typing import Optional
+
 
 @dataclass
 class _Node:
